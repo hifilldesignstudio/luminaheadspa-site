@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumina Head Spa &amp; Beauty — Maple, Vaughan | Head Spa &amp; Online Booking</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="description" content="Lumina Head Spa & Beauty in Maple, Vaughan. A calm head spa ritual for scalp, neck and shoulders. Open 7 days, 10 AM – 9 PM. Book online in minutes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#faf6ef; --cream2:#f3ecdf; --ink:#2e2a25; --muted:#7a7266;
+    --brass:#a98548; --brass-d:#8a6c38; --gold:#c9a35c; --sage:#8a9a8b; --line:#e3d9c8;
+    --card:#fffdf9; --deep:#171410;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;font-weight:300}
+  h1,h2,h3,.serif{font-family:'Cormorant Garamond',serif;font-weight:600;line-height:1.12}
+  img{max-width:100%}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+  .kicker{letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--brass);font-weight:500}
+  section{padding:84px 0}
+  .sec-head{max-width:640px;margin-bottom:42px}
+  .sec-head h2{font-size:clamp(32px,4.4vw,46px);margin:10px 0 12px}
+  .sec-head p{color:var(--muted);font-size:17px}
+
+  /* header */
+  .topbar{background:var(--deep);color:#e9e2d4;font-size:13px;letter-spacing:.06em}
+  .topbar .wrap{display:flex;justify-content:space-between;gap:14px;padding-top:8px;padding-bottom:8px;flex-wrap:wrap}
+  .topbar a{color:#e9e2d4;text-decoration:none}
+  header.site{position:sticky;top:0;background:rgba(20,17,13,.97);backdrop-filter:blur(8px);border-bottom:1px solid #3a332a;z-index:50}
+  header.site .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:14px;padding-bottom:14px;gap:16px}
+  .logo{text-decoration:none;line-height:0}
+  .logo img{height:50px;width:auto;display:block}
+  @media(max-width:860px){.logo img{height:36px}}
+  nav.main{display:flex;gap:26px;align-items:center}
+  nav.main a{color:#e9e2d4;text-decoration:none;font-size:15px;letter-spacing:.04em}
+  nav.main a:hover{color:var(--gold)}
+  .btn{display:inline-block;background:var(--brass);color:#fff;text-decoration:none;padding:12px 26px;border-radius:999px;font-size:15px;letter-spacing:.06em;font-weight:500;border:1px solid var(--brass);cursor:pointer;transition:.2s}
+  .btn:hover{background:var(--brass-d);border-color:var(--brass-d)}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:#c9bda6}
+  .hero-photo{border-radius:18px;overflow:hidden;box-shadow:0 24px 50px rgba(60,45,20,.22);border:1px solid #d9c9a8}
+  .hero-photo img{display:block;width:100%;height:auto}
+  .card .card-photo{width:100%;height:185px;object-fit:cover;border-radius:12px}
+  .cards{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:860px){.cards{grid-template-columns:1fr}}
+  .price-cat{padding:15px 26px 13px;background:#f6efe1;border-bottom:1px solid var(--line);font-size:12.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--brass-d);font-weight:600}
+  .tile{background-size:cover;background-position:center}
+  .tile::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,16,10,0) 45%,rgba(20,16,10,.55))}
+  footer .logo img{height:44px}
+  .btn.ghost:hover{border-color:var(--brass);color:var(--brass-d)}
+  nav.main .btn{padding:9px 20px}
+  @media(max-width:860px){nav.main a:not(.btn){display:none}}
+
+  /* hero */
+  .hero{padding:0;position:relative;overflow:hidden;background:#14110d;display:flex;align-items:center;min-height:660px}
+  .hero::before{content:"";position:absolute;inset:0;background:
+    linear-gradient(90deg, rgba(15,12,8,.86) 0%, rgba(15,12,8,.62) 44%, rgba(15,12,8,.18) 78%, rgba(15,12,8,.30) 100%),
+    url('lumina-hero2.jpg') center 72%/cover no-repeat}
+  .hero .wrap{position:relative;z-index:2;width:100%;padding-top:72px;padding-bottom:72px}
+  .hero .hero-text{max-width:640px}
+  @media(max-width:860px){
+    .hero::before{background:linear-gradient(180deg, rgba(15,12,8,.88) 0%, rgba(15,12,8,.66) 60%, rgba(15,12,8,.55) 100%), url('lumina-hero2.jpg') 78% 68%/cover no-repeat}
+    .hero .wrap{padding-top:56px;padding-bottom:56px}
+  }
+  .hero h1{font-size:clamp(52px,6.8vw,86px);margin:16px 0 20px;color:#fdf6e3}
+  .hero h1 em{font-style:italic;color:var(--gold)}
+  .hero .kicker{color:var(--gold)}
+  .hero p.lede{font-size:21px;color:#eae1cd;max-width:560px;margin-bottom:32px}
+  .hero .kicker{font-size:12.5px}
+  .hero .btn{padding:14px 32px;font-size:16px}
+  .hero .hero-meta{font-size:15.5px;gap:32px}
+  .hero .btn.ghost{color:#f3ead8;border-color:rgba(243,234,216,.55)}
+  .hero .btn.ghost:hover{border-color:var(--gold);color:var(--gold)}
+  .hero .hero-meta{color:#cfc4ab}
+  .hero .hero-meta b{color:#fdf6e3}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+  .hero-meta{display:flex;gap:26px;flex-wrap:wrap;font-size:14.5px;color:var(--muted)}
+  .hero-meta b{color:var(--ink);font-weight:500}
+  .hero-art{position:relative}
+  .arch{background:linear-gradient(170deg,#e7dbc4,#d9c8a6 55%,#c9b184);border-radius:999px 999px 18px 18px;aspect-ratio:4/5;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;position:relative}
+  .arch::before{content:"";position:absolute;inset:16px;border:1px solid rgba(255,255,255,.55);border-radius:inherit}
+  .arch::after{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(255,251,240,.85),rgba(255,251,240,0) 65%);top:6%;left:50%;transform:translateX(-50%)}
+  .arch .arch-cap{position:relative;z-index:2;text-align:center;color:#4c4232;padding:26px}
+  .arch .arch-cap .serif{font-size:30px;font-style:italic}
+  .arch .arch-cap span{display:block;font-size:12px;letter-spacing:.3em;text-transform:uppercase;margin-top:6px}
+  .hero-badge{position:absolute;bottom:22px;left:-14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 18px;box-shadow:0 14px 30px rgba(90,75,45,.13);font-size:14px}
+  .hero-badge b{display:block;font-family:'Cormorant Garamond',serif;font-size:19px}
+  @media(max-width:860px){.hero-badge{left:8px}}
+
+  /* treatments */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:860px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 26px;display:flex;flex-direction:column;gap:10px}
+  .card .num{font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--brass);font-size:19px}
+  .card h3{font-size:25px}
+  .card p{color:var(--muted);font-size:15.5px;flex:1}
+  .card .meta{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:14px;font-size:15px}
+  .card .price{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700}
+  .card a{color:var(--brass-d);text-decoration:none;font-weight:500;letter-spacing:.05em;font-size:14px}
+  .sample-note{font-size:13px;color:var(--muted);margin-top:16px;font-style:italic}
+
+  /* price list */
+  .prices{background:var(--cream2)}
+  .price-table{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .price-row{display:flex;justify-content:space-between;gap:18px;padding:19px 26px;border-bottom:1px solid var(--line);align-items:baseline}
+  .price-row:last-child{border-bottom:none}
+  .price-row h3{font-size:21px}
+  .price-row p{color:var(--muted);font-size:14.5px}
+  .price-row .amt{font-family:'Cormorant Garamond',serif;font-size:23px;font-weight:700;white-space:nowrap}
+  .price-row .amt small{display:block;font-family:'Jost',sans-serif;font-weight:300;font-size:12.5px;color:var(--muted);text-align:right;letter-spacing:.08em}
+
+  /* gallery */
+  .gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media(max-width:860px){.gallery{grid-template-columns:repeat(2,1fr)}}
+  .tile{border-radius:16px;aspect-ratio:1/1.15;display:flex;align-items:flex-end;padding:16px;color:#fff;position:relative;overflow:hidden}
+  .tile span{font-size:14px;letter-spacing:.05em;position:relative;z-index:2}
+  .tile small{display:block;font-size:11.5px;opacity:.85;letter-spacing:.14em;text-transform:uppercase}
+  .t1{background:linear-gradient(165deg,#cbb489,#a98548)}
+  .t2{background:linear-gradient(165deg,#a9b6a4,#77896f)}
+  .t3{background:linear-gradient(165deg,#d8c6a5,#b3986d)}
+  .t4{background:linear-gradient(165deg,#b7a58e,#8d7c64)}
+
+  /* why / story / reviews */
+  .why{background:var(--deep);color:#efe9dc}
+  .why .sec-head p{color:#c9c0ac}
+  .why .kicker{color:#d3af6f}
+  .why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:860px){.why-grid{grid-template-columns:1fr}}
+  .why-item{border:1px solid #4c473d;border-radius:18px;padding:28px 26px;background:#38352f}
+  .why-item .num{font-family:'Cormorant Garamond',serif;font-style:italic;color:#d3af6f;font-size:20px}
+  .why-item h3{font-size:24px;margin:8px 0}
+  .why-item p{color:#c9c0ac;font-size:15.5px}
+  .story{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+  @media(max-width:860px){.story{grid-template-columns:1fr}}
+  .story h2{font-size:clamp(30px,4vw,42px);margin:10px 0 14px}
+  .story p{color:var(--muted);font-size:17px;margin-bottom:14px}
+  .story-art{border-radius:18px;aspect-ratio:4/3;overflow:hidden}
+  .story-art img{width:100%;height:100%;object-fit:cover;display:block}
+  .story-art .serif{font-size:28px;font-style:italic}
+  .reviews{background:var(--cream2)}
+  .rev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:860px){.rev-grid{grid-template-columns:1fr}}
+  .rev{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px}
+  .rev .stars{color:var(--brass);letter-spacing:.2em;margin-bottom:10px}
+  .rev p{font-size:16px;color:#4c463d}
+  .rev b{display:block;margin-top:14px;font-weight:500;font-size:14.5px}
+
+  /* booking */
+  .book-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:44px;align-items:start}
+  @media(max-width:860px){.book-grid{grid-template-columns:1fr}}
+  .book-info h2{font-size:clamp(30px,4vw,42px);margin:10px 0 14px}
+  .book-info p{color:var(--muted);font-size:17px;margin-bottom:16px}
+  .book-info ul{list-style:none;margin-top:8px}
+  .book-info li{padding:9px 0;border-bottom:1px dashed var(--line);font-size:16px}
+  .book-info li b{font-weight:500}
+  .widget{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 18px 40px rgba(90,75,45,.08)}
+  .widget h3{font-size:24px;margin-bottom:4px}
+  .widget .sub{color:var(--muted);font-size:14.5px;margin-bottom:18px}
+  .fld{margin-bottom:16px}
+  .fld label{display:block;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-weight:500}
+  select,input[type=text],input[type=tel]{width:100%;padding:12px 14px;border:1px solid #d8cdb8;border-radius:10px;font-family:'Jost',sans-serif;font-size:16px;background:#fff;color:var(--ink)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid #d8cdb8;background:#fff;border-radius:999px;padding:8px 15px;font-size:14.5px;cursor:pointer;font-family:'Jost',sans-serif}
+  .chip:hover{border-color:var(--brass)}
+  .chip.sel{background:var(--brass);color:#fff;border-color:var(--brass)}
+  .widget .btn{width:100%;text-align:center;margin-top:6px}
+  .demo-note{font-size:13px;color:var(--muted);margin-top:14px;text-align:center}
+  .step{display:none}
+  .step.on{display:block;animation:fadeUp .25s ease}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .bk-summary{display:none;background:#171410;color:#e9e2d4;border-radius:12px;padding:11px 16px;font-size:14.5px;margin-bottom:18px;letter-spacing:.03em}
+  .bk-summary.on{display:block}
+  .bk-summary b{color:var(--gold);font-weight:500}
+  .cal{border:1px solid #d8cdb8;border-radius:14px;padding:14px;background:#fff}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-head .mname{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:700}
+  .cal-nav{border:1px solid #d8cdb8;background:#fff;border-radius:8px;width:34px;height:34px;font-size:17px;cursor:pointer;line-height:1}
+  .cal-nav:hover{border-color:var(--brass)}
+  .cal-nav:disabled{opacity:.3;cursor:default}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal-dow{text-align:center;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:4px 0;font-weight:500}
+  .cal-day{border:1px solid #e7ddc9;background:#fffdf9;border-radius:9px;padding:9px 0;font-size:15px;cursor:pointer;font-family:'Jost',sans-serif;text-align:center}
+  .cal-day:hover{border-color:var(--brass)}
+  .cal-day.sel{background:var(--brass);color:#fff;border-color:var(--brass);font-weight:500}
+  .cal-day.off{opacity:.32;cursor:default;background:transparent;border-color:transparent}
+  .cal-day.today{box-shadow:inset 0 0 0 1px var(--brass)}
+  .cal-tz{text-align:center;font-size:12.5px;color:var(--muted);margin-top:9px;letter-spacing:.05em}
+  .confirm{display:none;background:#eef2ea;border:1px solid #c8d4c2;border-radius:14px;padding:20px 22px;margin-top:18px}
+  .confirm h4{font-family:'Cormorant Garamond',serif;font-size:23px;margin-bottom:6px}
+  .confirm p{font-size:15.5px}
+  .err{display:none;color:#a33d2a;font-size:14px;margin-top:10px}
+
+  /* visit / footer */
+  .visit{background:var(--cream2)}
+  .visit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:860px){.visit-grid{grid-template-columns:1fr}}
+  .visit-item h3{font-size:22px;margin-bottom:8px}
+  .visit-item p{color:#5c554a;font-size:16.5px}
+  .visit-item a{color:var(--brass-d);text-decoration:none;font-weight:500}
+  footer{background:var(--deep);color:#c9c0ac;padding:44px 0 34px;font-size:14.5px}
+  footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  footer .logo{color:#efe9dc}
+  footer a{color:#e9e2d4}
+  .credit{max-width:1120px;margin:22px auto 0;padding:18px 22px 0;border-top:1px solid #4c473d;font-size:12.5px;color:#8f8776}
+  /* treatments: 3 across */
+  .cards{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:1020px){.cards{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <span>Head Spa &amp; Beauty · Maple, Vaughan</span>
+  <span>Open 7 days · 10:00 AM – 9:00 PM &nbsp;·&nbsp; <a href="tel:+16473688148">647-368-8148</a></span>
+</div></div>
+
+<header class="site"><div class="wrap">
+  <a class="logo" href="#top"><img src="lumina-logo.svg" alt="Lumina Head Spa &amp; Beauty"></a>
+  <nav class="main">
+    <a href="#treatments">Treatments</a>
+    <a href="#prices">Services &amp; Prices</a>
+    <a href="#inside">Inside</a>
+    <a href="#visit">Visit Us</a>
+    <a class="btn" href="#book">Book Now</a>
+  </nav>
+</div></header>
+
+<section class="hero" id="top"><div class="wrap"><div class="hero-text">
+    <div class="kicker">Head Spa &amp; Beauty · Maple, Vaughan</div>
+    <h1>Your beauty, <em>our care</em>.</h1>
+    <p class="lede">Warm water, slow hands and a calm room. Lumina is a head spa in Maple where every visit is a small reset — for your hair, your head and your day.</p>
+    <div class="hero-cta">
+      <a class="btn" href="#book">Book an Appointment</a>
+      <a class="btn ghost" href="#prices">See Services &amp; Prices</a>
+    </div>
+    <div class="hero-meta">
+      <span><b>Open 7 days</b><br>10:00 AM – 9:00 PM</span>
+      <span><b>9505 Keele St, Unit 1A</b><br>Maple, ON L6A 1W3</span>
+      <span><b>647-368-8148</b><br>Call or book online</span>
+    </div>
+  </div></div></section>
+
+<section id="treatments"><div class="wrap">
+  <div class="sec-head">
+    <div class="kicker">Signature Treatments</div>
+    <h2>Where to begin.</h2>
+    <p>Six guest favourites across our head spa, foot reflexology, salt stone and facial care — every one can be booked online in about a minute, and you can add a second treatment to the same visit.</p>
+  </div>
+  <div class="cards">
+    <div class="card"><img class="card-photo" src="svc-headspa.jpg" alt="Head spa treatment"><h3>Signature Head Spa Ritual</h3>
+      <p>Purify the scalp, boost circulation and grow healthier hair — our signature warm-water ritual for head, neck and shoulders.</p>
+      <div class="meta"><span>60 min</span><span class="price">$88</span></div><a href="#book">Book this →</a></div>
+    <div class="card"><img class="card-photo" src="gallery-basin.jpg" alt="Head spa water ritual"><h3>Head Spa &amp; Shoulder Release</h3>
+      <p>The signature ritual with extra time on the neck, shoulders and upper back — for desk shoulders and long weeks.</p>
+      <div class="meta"><span>75 min</span><span class="price">$108</span></div><a href="#book">Book this →</a></div>
+    <div class="card"><img class="card-photo" src="svc-foot.jpg" alt="Foot reflexology"><h3>Classic Foot Reflexology</h3>
+      <p>Relax, rebalance, rejuvenate. A warm soak and pressure-point foot ritual that resets tired legs and the whole body.</p>
+      <div class="meta"><span>45 min</span><span class="price">$55</span></div><a href="#book">Book this →</a></div>
+    <div class="card"><img class="card-photo" src="svc-saltstone.jpg" alt="Himalayan salt stone therapy"><h3>Himalayan Salt Stone Therapy</h3>
+      <p>Natural healing, deep relaxation and muscle relief — warm salt stones melt tension from neck, shoulders and back.</p>
+      <div class="meta"><span>60 min</span><span class="price">$95</span></div><a href="#book">Book this →</a></div>
+    <div class="card"><img class="card-photo" src="svc-facial.jpg" alt="Facial care"><h3>Signature Facial</h3>
+      <p>Firm &amp; brighten, hydrate and rejuvenate — gentle facial care that leaves skin calm, bright and rested.</p>
+      <div class="meta"><span>60 min</span><span class="price">$75</span></div><a href="#book">Book this →</a></div>
+    <div class="card"><img class="card-photo" src="photo-tray.jpg" alt="Treatment tray prepared at Lumina"><h3>Head Spa &amp; Mini Facial</h3>
+      <p>The best of both: the full head spa ritual paired with a gentle mini facial. One visit, completely reset.</p>
+      <div class="meta"><span>90 min</span><span class="price">$128</span></div><a href="#book">Book this →</a></div>
+  </div>
+</div></section>
+
+<section class="prices" id="prices"><div class="wrap">
+  <div class="sec-head">
+    <div class="kicker">Services &amp; Prices</div>
+    <h2>Simple, honest pricing.</h2>
+    <p>No packages to decode. Pick a treatment, pick a time — that's it.</p>
+  </div>
+  <div class="price-table">
+    <div class="price-cat">Head Spa</div>
+    <div class="price-row"><div><h3>Express Refresh Head Spa</h3><p>A short reset: cleanse, warm-water massage and blow-dry finish.</p></div><div class="amt">$48<small>30 MIN</small></div></div>
+    <div class="price-row"><div><h3>Deep Scalp Detox &amp; Care</h3><p>Exfoliation, detox cleanse and nourishing scalp care.</p></div><div class="amt">$68<small>45 MIN</small></div></div>
+    <div class="price-row"><div><h3>Signature Head Spa Ritual</h3><p>Our full ritual for scalp, hair, neck and shoulders.</p></div><div class="amt">$88<small>60 MIN</small></div></div>
+    <div class="price-row"><div><h3>Aromatherapy Scalp &amp; Neck Ritual</h3><p>Essential-oil scalp massage with extended neck work.</p></div><div class="amt">$98<small>60 MIN</small></div></div>
+    <div class="price-row"><div><h3>Head Spa &amp; Shoulder Release</h3><p>Signature ritual plus extra neck, shoulder and upper-back time.</p></div><div class="amt">$108<small>75 MIN</small></div></div>
+    <div class="price-cat">Foot Reflexology</div>
+    <div class="price-row"><div><h3>Classic Foot Reflexology</h3><p>Warm soak and pressure-point foot massage.</p></div><div class="amt">$55<small>45 MIN</small></div></div>
+    <div class="price-row"><div><h3>Foot Reflexology &amp; Soak Ritual</h3><p>Extended soak, scrub and reflexology session.</p></div><div class="amt">$70<small>60 MIN</small></div></div>
+    <div class="price-cat">Himalayan Salt Stone Therapy</div>
+    <div class="price-row"><div><h3>Salt Stone Therapy</h3><p>Warm Himalayan salt stones for neck, shoulders and back.</p></div><div class="amt">$95<small>60 MIN</small></div></div>
+    <div class="price-row"><div><h3>Salt Stone Full Ritual</h3><p>The full-body salt stone ritual, unhurried.</p></div><div class="amt">$125<small>90 MIN</small></div></div>
+    <div class="price-cat">Facial Care</div>
+    <div class="price-row"><div><h3>Signature Facial</h3><p>Cleanse, hydrate and brighten — for calm, rested skin.</p></div><div class="amt">$75<small>60 MIN</small></div></div>
+    <div class="price-row"><div><h3>Head Spa &amp; Mini Facial</h3><p>The full head spa ritual paired with a gentle mini facial.</p></div><div class="amt">$128<small>90 MIN</small></div></div>
+  </div>
+</div></section>
+
+<section id="inside"><div class="wrap">
+  <div class="sec-head">
+    <div class="kicker">Inside the Spa</div>
+    <h2>A room made to slow down.</h2>
+    <p>Soft light, warm tones and quiet corners — take a look inside our Maple spa.</p>
+  </div>
+  <div class="gallery">
+    <div class="tile" style="background-image:url('gallery-room.jpg')"><span><small>Inside</small>Treatment Room</span></div>
+    <div class="tile" style="background-image:url('gallery-basin.jpg')"><span><small>Inside</small>Head Spa Basin</span></div>
+    <div class="tile" style="background-image:url('gallery-styling.jpg')"><span><small>Inside</small>Styling Area</span></div>
+    <div class="tile" style="background-image:url('gallery-corner.jpg')"><span><small>Inside</small>Relaxation Corner</span></div>
+    <div class="tile" style="background-image:url('gallery-hall.jpg')"><span><small>Inside</small>Welcome Hall</span></div>
+    <div class="tile" style="background-image:url('gallery-analysis.jpg')"><span><small>Inside</small>Scalp Analysis</span></div>
+    <div class="tile" style="background-image:url('gallery-ritual.jpg')"><span><small>Inside</small>Ritual Details</span></div>
+    <div class="tile" style="background-image:url('gallery-clean.jpg')"><span><small>Inside</small>Disinfected Daily</span></div>
+  </div>
+</div></section>
+
+<section class="why"><div class="wrap">
+  <div class="sec-head">
+    <div class="kicker">Why Lumina</div>
+    <h2>Care you can feel.</h2>
+    <p>Three reasons guests make Lumina part of their week.</p>
+  </div>
+  <div class="why-grid">
+    <div class="why-item"><div class="num">01</div><h3>Unhurried, by design</h3><p>Appointments are spaced so nothing feels rushed — the same caring hands stay with you from welcome to finish.</p></div>
+    <div class="why-item"><div class="num">02</div><h3>Gentle, clean products</h3><p>Scalp-friendly products chosen for sensitive skin, so every treatment nourishes instead of stripping.</p></div>
+    <div class="why-item"><div class="num">03</div><h3>Easy to fit in</h3><p>Open 7 days until 9 PM, with online booking in about a minute. Come after work, or on a quiet Sunday.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap"><div class="story">
+  <div>
+    <div class="kicker">Our Story</div>
+    <h2>A small spa with a simple idea.</h2>
+    <p>Lumina Head Spa &amp; Beauty opened in Maple with one belief: an hour of real quiet does more than rest your head — it resets your whole day.</p>
+    <p>Every ritual here is done slowly and by hand, in a warm, softly lit room. Come as you are; leave a little lighter.</p>
+    <a class="btn ghost" href="#book">Book your hour</a>
+  </div>
+  <div class="story-art"><img src="gallery-hall.jpg" alt="Inside Lumina Head Spa &amp; Beauty, Maple"></div>
+</div></div></section>
+
+
+
+<section id="book"><div class="wrap"><div class="book-grid">
+  <div class="book-info">
+    <div class="kicker">Online Booking</div>
+    <h2>Book in about a minute.</h2>
+    <p>Choose your treatment and a time that suits you — no need to pick a technician, we arrange that for you on the day. We confirm every booking personally.</p>
+    <ul>
+      <li><b>Hours</b> — Open 7 days, 10:00 AM – 9:00 PM</li>
+      <li><b>Booking ahead</b> — You can book online up to 1 month in advance</li>
+      <li><b>Technicians</b> — No need to choose; bookings run on opening hours and we arrange your technician</li>
+      <li><b>Payment</b> — Nothing to pay online; pay at the shop</li>
+      <li><b>Questions?</b> — Call us at <a href="tel:+16473688148" style="color:var(--brass-d);font-weight:500;text-decoration:none">647-368-8148</a></li>
+    </ul>
+  </div>
+  <div class="widget">
+    <h3>Book an appointment</h3>
+    <p class="sub">Lumina Head Spa &amp; Beauty · Maple</p>
+    <div class="fld"><label for="svc">1 · Choose a treatment</label>
+      <select id="svc">
+        <option value="">Select a treatment…</option>
+        <option data-min="30" data-price="48">Express Refresh Head Spa — 30 min · $48</option>
+        <option data-min="45" data-price="68">Deep Scalp Detox &amp; Care — 45 min · $68</option>
+        <option data-min="60" data-price="88" selected>Signature Head Spa Ritual — 60 min · $88</option>
+        <option data-min="60" data-price="98">Aromatherapy Scalp &amp; Neck Ritual — 60 min · $98</option>
+        <option data-min="75" data-price="108">Head Spa &amp; Shoulder Release — 75 min · $108</option>
+        <option data-min="45" data-price="55">Classic Foot Reflexology — 45 min · $55</option>
+        <option data-min="60" data-price="70">Foot Reflexology &amp; Soak Ritual — 60 min · $70</option>
+        <option data-min="60" data-price="95">Salt Stone Therapy — 60 min · $95</option>
+        <option data-min="90" data-price="125">Salt Stone Full Ritual — 90 min · $125</option>
+        <option data-min="60" data-price="75">Signature Facial — 60 min · $75</option>
+        <option data-min="90" data-price="128">Head Spa &amp; Mini Facial — 90 min · $128</option>
+      </select></div>
+    <div class="fld"><label for="svc2">Add a second treatment <span style="text-transform:none;letter-spacing:0;font-weight:300">(optional — done right after the first, in the same visit)</span></label>
+      <select id="svc2">
+        <option value="">None — just one treatment</option>
+        <option data-min="30" data-price="48">Express Refresh Head Spa — 30 min · $48</option>
+        <option data-min="45" data-price="68">Deep Scalp Detox &amp; Care — 45 min · $68</option>
+        <option data-min="60" data-price="88">Signature Head Spa Ritual — 60 min · $88</option>
+        <option data-min="60" data-price="98">Aromatherapy Scalp &amp; Neck Ritual — 60 min · $98</option>
+        <option data-min="75" data-price="108">Head Spa &amp; Shoulder Release — 75 min · $108</option>
+        <option data-min="45" data-price="55">Classic Foot Reflexology — 45 min · $55</option>
+        <option data-min="60" data-price="70">Foot Reflexology &amp; Soak Ritual — 60 min · $70</option>
+        <option data-min="60" data-price="95">Salt Stone Therapy — 60 min · $95</option>
+        <option data-min="90" data-price="125">Salt Stone Full Ritual — 90 min · $125</option>
+        <option data-min="60" data-price="75">Signature Facial — 60 min · $75</option>
+        <option data-min="90" data-price="128">Head Spa &amp; Mini Facial — 90 min · $128</option>
+      </select></div>
+    <div class="bk-summary" id="bkSummary"></div>
+    <div class="fld step" id="stepCal"><label>2 · Pick a date</label>
+      <div class="cal">
+        <div class="cal-head"><button type="button" class="cal-nav" id="calPrev" aria-label="Previous month">‹</button><div class="mname" id="calTitle"></div><button type="button" class="cal-nav" id="calNext" aria-label="Next month">›</button></div>
+        <div class="cal-grid" id="calDow"></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-tz">America/Toronto · Book up to 1 month ahead</div>
+      </div>
+    </div>
+    <div class="fld step" id="stepTime"><label>3 · Pick a time</label><div class="chips" id="times"></div></div>
+    <div class="step" id="stepDetails">
+      <div class="fld"><label for="nm">4 · Your name</label><input type="text" id="nm" placeholder="Full name"></div>
+      <div class="fld"><label for="ph">Phone</label><input type="tel" id="ph" placeholder="e.g. 416-555-0123"></div>
+      <button class="btn" id="confirmBtn">Show My Booking Details</button>
+    </div>
+    <p class="err" id="err">Please complete each step: treatment, date, time, and your name and phone number.</p>
+    <div class="confirm" id="confirmBox">
+      <h4>Your booking details</h4>
+      <p id="confirmText"></p>
+      <p style="margin-top:8px;color:var(--muted);font-size:14px">One last step — call us to confirm and we will book you in:</p>
+      <p style="margin-top:10px"><a class="btn" href="tel:+16473688148" style="display:inline-block;width:auto;padding:11px 24px">Call 647-368-8148 to Confirm</a></p>
+    </div>
+    <p class="demo-note">Online booking is launching very soon — for now, pick your treatment and time above, then call us to confirm.</p>
+  </div></div></div></section>
+
+<section class="visit" id="visit"><div class="wrap">
+  <div class="sec-head">
+    <div class="kicker">Visit Us</div>
+    <h2>Maple · Vaughan</h2>
+  </div>
+  <div class="visit-grid">
+    <div class="visit-item"><h3>Address</h3><p>9505 Keele Street, Unit 1A<br>Maple, ON L6A 1W3<br><a href="https://www.google.com/maps/search/?api=1&amp;query=9505+Keele+Street+Unit+1A+Maple+ON+L6A+1W3" target="_blank" rel="noopener">Get directions →</a></p></div>
+    <div class="visit-item"><h3>Hours</h3><p>Monday – Sunday<br>10:00 AM – 9:00 PM<br>Open 7 days a week</p></div>
+    <div class="visit-item"><h3>Contact</h3><p>Phone: <a href="tel:+16473688148">647-368-8148</a><br>Email: <a href="mailto:info@luminaheadspa.ca">info@luminaheadspa.ca</a><br>luminaheadspa.ca</p></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <a class="logo" href="#top"><img src="lumina-logo.svg" alt="Lumina Head Spa &amp; Beauty"></a>
+  <div>9505 Keele Street, Unit 1A, Maple, ON L6A 1W3 · Open 7 days 10 AM – 9 PM · <a href="tel:+16473688148">647-368-8148</a></div>
+</div>
+<div class="credit">© 2026 Lumina Head Spa &amp; Beauty · 9505 Keele Street, Unit 1A, Maple, ON · Website by Hifill Design Studio</div>
+</footer>
+
+<script>
+(function(){
+  var WINDOW_DAYS = 30;          /* how far ahead guests can book (1 month) */
+  var svcEl=document.getElementById('svc'),
+      svc2El=document.getElementById('svc2'),
+      sumEl=document.getElementById('bkSummary'),
+      stepCal=document.getElementById('stepCal'),
+      stepTime=document.getElementById('stepTime'),
+      stepDet=document.getElementById('stepDetails'),
+      grid=document.getElementById('calGrid'),
+      dowEl=document.getElementById('calDow'),
+      titleEl=document.getElementById('calTitle'),
+      prevB=document.getElementById('calPrev'),
+      nextB=document.getElementById('calNext'),
+      timesEl=document.getElementById('times');
+  var selDay=null, selDayLabel='', selTime=null, selEnd=null, selStartMin=null;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var lastDay=new Date(today); lastDay.setDate(today.getDate()+WINDOW_DAYS);
+  var viewY=today.getFullYear(), viewM=today.getMonth();
+  var fmtFull=new Intl.DateTimeFormat('en-CA',{weekday:'long',month:'long',day:'numeric'});
+  var fmtMon=new Intl.DateTimeFormat('en-CA',{month:'long',year:'numeric'});
+
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(d){
+    var c=document.createElement('div'); c.className='cal-dow'; c.textContent=d; dowEl.appendChild(c);
+  });
+
+  function svcName(){ var o=svcEl.options[svcEl.selectedIndex]; return svcEl.value? o.text.split(' — ')[0] : ''; }
+  function svc2Name(){ var o=svc2El.options[svc2El.selectedIndex]; return svc2El.value? o.text.split(' — ')[0] : ''; }
+  function durOf(el){ var o=el.options[el.selectedIndex]; return el.value? (parseInt(o.dataset.min,10)||0) : 0; }
+  function priceOf(el){ var o=el.options[el.selectedIndex]; return el.value? (parseInt(o.dataset.price,10)||0) : 0; }
+  function updateSummary(){
+    if(!svcEl.value){ sumEl.className='bk-summary'; sumEl.innerHTML=''; return; }
+    var totalMin=durOf(svcEl)+durOf(svc2El), totalPrice=priceOf(svcEl)+priceOf(svc2El);
+    var names=svcName()+(svc2El.value?' + '+svc2Name():'');
+    var html='<b>'+names+'</b> · '+totalMin+' min · $'+totalPrice;
+    if(selDayLabel) html+=' · '+selDayLabel;
+    if(selTime) html+=' · '+selTime+(selEnd?' – '+selEnd:'');
+    sumEl.innerHTML=html; sumEl.className='bk-summary on';
+  }
+
+  function renderCal(){
+    titleEl.textContent=fmtMon.format(new Date(viewY,viewM,1));
+    prevB.disabled = (viewY<today.getFullYear()) || (viewY===today.getFullYear() && viewM<=today.getMonth());
+    var firstOfLast=new Date(lastDay.getFullYear(),lastDay.getMonth(),1);
+    nextB.disabled = (new Date(viewY,viewM,1) >= firstOfLast);
+    grid.innerHTML='';
+    var first=new Date(viewY,viewM,1);
+    var lead=(first.getDay()+6)%7;               /* Monday-first offset */
+    var dim=new Date(viewY,viewM+1,0).getDate();
+    for(var i=0;i<lead;i++){ var e=document.createElement('div'); grid.appendChild(e); }
+    for(var d=1; d<=dim; d++){
+      (function(d){
+        var dt=new Date(viewY,viewM,d);
+        var b=document.createElement('button'); b.type='button'; b.className='cal-day'; b.textContent=d;
+        if(dt<today || dt>lastDay){ b.classList.add('off'); b.disabled=true; }
+        if(dt.getTime()===today.getTime()) b.classList.add('today');
+        if(selDay && dt.getTime()===selDay.getTime()) b.classList.add('sel');
+        b.addEventListener('click',function(){
+          selDay=dt; selDayLabel=fmtFull.format(dt);
+          grid.querySelectorAll('.cal-day').forEach(function(c){c.classList.remove('sel')});
+          b.classList.add('sel');
+          selTime=null; selEnd=null; stepDet.classList.remove('on');
+          buildTimes();
+          stepTime.classList.add('on'); updateSummary();
+          stepTime.scrollIntoView({behavior:'smooth',block:'nearest'});
+        });
+        grid.appendChild(b);
+      })(d);
+    }
+  }
+  prevB.addEventListener('click',function(){ viewM--; if(viewM<0){viewM=11;viewY--;} renderCal(); });
+  nextB.addEventListener('click',function(){ viewM++; if(viewM>11){viewM=0;viewY++;} renderCal(); });
+
+  function fmtTime(mins){
+    var h=Math.floor(mins/60), m=mins%60, ap=h>=12?'PM':'AM', h12=h%12; if(h12===0)h12=12;
+    return h12+':'+(m<10?'0':'')+m+' '+ap;
+  }
+  function buildTimes(){
+    timesEl.innerHTML='';
+    var dur=durOf(svcEl)+durOf(svc2El); if(!dur) dur=60;
+    var OPEN=10*60, CLOSE=21*60, STEP=30;
+    var now=new Date(); var isToday = selDay && selDay.getTime()===today.getTime();
+    var nowMin=now.getHours()*60+now.getMinutes();
+    for(var st=OPEN; st+dur<=CLOSE; st+=STEP){
+      if(isToday && st<=nowMin) continue;
+      (function(st){
+        var b=document.createElement('button'); b.type='button'; b.className='chip'; b.textContent=fmtTime(st);
+        b.addEventListener('click',function(){
+          timesEl.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel')});
+          b.classList.add('sel'); selTime=fmtTime(st); selEnd=fmtTime(st+dur); selStartMin=st;
+          stepDet.classList.add('on'); updateSummary();
+          stepDet.scrollIntoView({behavior:'smooth',block:'nearest'});
+        });
+        timesEl.appendChild(b);
+      })(st);
+    }
+    if(!timesEl.children.length){
+      var none=document.createElement('span'); none.style.cssText='color:var(--muted);font-size:14.5px';
+      none.textContent='No times left for this treatment today — please pick another day.';
+      timesEl.appendChild(none);
+    }
+  }
+
+  function onSvcChange(){
+    selTime=null; selEnd=null; selStartMin=null; stepDet.classList.remove('on');
+    updateSummary();
+    if(svcEl.value){ stepCal.classList.add('on'); renderCal(); if(selDay) buildTimes(); }
+  }
+  svcEl.addEventListener('change',onSvcChange);
+  svc2El.addEventListener('change',onSvcChange);
+  /* a treatment is pre-selected in the form — open the calendar straight away */
+  if(svcEl.value){ stepCal.classList.add('on'); renderCal(); updateSummary(); }
+
+  document.getElementById('confirmBtn').addEventListener('click',function(){
+    var nm=document.getElementById('nm').value.trim(), ph=document.getElementById('ph').value.trim(),
+        err=document.getElementById('err'), box=document.getElementById('confirmBox');
+    if(!svcEl.value||!selDay||!selTime||!nm||!ph){ err.style.display='block'; box.style.display='none'; return; }
+    err.style.display='none';
+    var d1=durOf(svcEl), detail=svcName()+' '+selTime+' – '+fmtTime(selStartMin+d1);
+    if(svc2El.value) detail+=' · '+svc2Name()+' '+fmtTime(selStartMin+d1)+' – '+selEnd;
+    document.getElementById('confirmText').textContent =
+      nm+' · '+detail+' on '+selDayLabel+'. We have your number as '+ph+'.';
+    box.style.display='block';
+    box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+})();
+</script>
+</body>
+</html>
