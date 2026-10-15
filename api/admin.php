@@ -1,0 +1,158 @@
+<?php
+/* Lumina Booking System — admin API. Session login with the password from the
+   config file. All actions except login/me need a session. */
+require __DIR__ . '/lib.php';
+
+session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'path' => '/']);
+session_start();
+
+$action = $_GET['action'] ?? '';
+$cfg = lumina_config();
+$pdo = lumina_db();
+if (!$pdo) lumina_json(['ok' => false, 'error' => 'Backend not installed yet.'], 503);
+
+function body_json() { $d = json_decode(file_get_contents('php://input'), true); return is_array($d) ? $d : []; }
+function need_login() { if (empty($_SESSION['lumina_admin'])) lumina_json(['ok' => false, 'error' => 'Not logged in'], 401); }
+
+if ($action === 'me') lumina_json(['ok' => true, 'loggedIn' => !empty($_SESSION['lumina_admin'])]);
+
+if ($action === 'login') {
+    $in = body_json();
+    $pass = (string)($in['password'] ?? '');
+    if ($cfg && hash_equals((string)($cfg['admin_pass'] ?? ''), $pass) && $pass !== '' && $pass !== 'CHANGE_ME') {
+        $_SESSION['lumina_admin'] = true;
+        lumina_json(['ok' => true]);
+    }
+    lumina_json(['ok' => false, 'error' => 'Wrong password'], 401);
+}
+if ($action === 'logout') { $_SESSION = []; session_destroy(); lumina_json(['ok' => true]); }
+
+need_login();
+
+function booking_full($pdo, $b) {
+    $st = $pdo->prepare("SELECT name_snapshot, minutes, price, start_min, end_min FROM booking_items WHERE booking_id = ? ORDER BY start_min");
+    $st->execute([$b['id']]);
+    $items = $st->fetchAll();
+    foreach ($items as &$it) { $it['startLabel'] = lumina_fmt_time((int)$it['start_min']); $it['endLabel'] = lumina_fmt_time((int)$it['end_min']); }
+    unset($it);
+    $b['items'] = $items;
+    $b['dayLabel'] = lumina_fmt_day($b['date']);
+    $b['startLabel'] = lumina_fmt_time((int)$b['start_min']);
+    $b['endLabel'] = lumina_fmt_time((int)$b['end_min']);
+    return $b;
+}
+
+if ($action === 'bookings') {
+    $where = []; $args = [];
+    if (!empty($_GET['status'])) { $where[] = "status = ?"; $args[] = $_GET['status']; }
+    if (!empty($_GET['date'])) { $where[] = "date = ?"; $args[] = $_GET['date']; }
+    if (!empty($_GET['q'])) { $where[] = "(name LIKE ? OR phone LIKE ? OR ref LIKE ?)"; $q = '%' . $_GET['q'] . '%'; $args = array_merge($args, [$q, $q, $q]); }
+    $sql = "SELECT * FROM bookings" . ($where ? " WHERE " . implode(' AND ', $where) : "")
+         . " ORDER BY (status='pending') DESC, date, start_min LIMIT 300";
+    $st = $pdo->prepare($sql); $st->execute($args);
+    lumina_json(['ok' => true, 'bookings' => array_map(fn($b) => booking_full($pdo, $b), $st->fetchAll())]);
+}
+
+if ($action === 'month_counts') {
+    $ym = $_GET['ym'] ?? lumina_now()->format('Y-m');
+    $st = $pdo->prepare("SELECT date, COUNT(*) total, SUM(status='pending') pend FROM bookings WHERE date LIKE ? AND status <> 'cancelled' GROUP BY date");
+    $st->execute([$ym . '-%']);
+    $out = [];
+    foreach ($st->fetchAll() as $r) $out[$r['date']] = ['total' => (int)$r['total'], 'pending' => (int)$r['pend']];
+    lumina_json(['ok' => true, 'counts' => $out]);
+}
+
+if ($action === 'booking_status') {
+    $in = body_json();
+    $id = (int)($in['id'] ?? 0);
+    $status = (string)($in['status'] ?? '');
+    if (!in_array($status, ['confirmed', 'cancelled', 'done', 'pending'], true)) lumina_json(['ok' => false, 'error' => 'Bad status'], 400);
+    $st = $pdo->prepare("SELECT * FROM bookings WHERE id = ?"); $st->execute([$id]); $b = $st->fetch();
+    if (!$b) lumina_json(['ok' => false, 'error' => 'Not found'], 404);
+    $pdo->prepare("UPDATE bookings SET status = ? WHERE id = ?")->execute([$status, $id]);
+    if ($status === 'cancelled' && $b['source'] === 'online' && $b['email'] !== '') {
+        lumina_mail($b['email'], "Your Lumina booking {$b['ref']} was cancelled",
+            "Hi {$b['name']},\n\nWe're sorry — your booking {$b['ref']} on " . lumina_fmt_day($b['date']) . " at " . lumina_fmt_time((int)$b['start_min']) .
+            " has been cancelled by the shop. Please call us at 647-368-8148 and we will gladly rebook you.\n\nLumina Head Spa & Beauty");
+    }
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'phone_booking') {
+    $in = body_json();
+    $name = trim((string)($in['name'] ?? '')); $phone = trim((string)($in['phone'] ?? ''));
+    $email = trim((string)($in['email'] ?? '')); $note = trim((string)($in['note'] ?? ''));
+    $date = (string)($in['date'] ?? ''); $start = (int)($in['start'] ?? -1);
+    $ids = array_slice(array_map('intval', (array)($in['items'] ?? [])), 0, 2);
+    $force = !empty($in['force']);
+    if ($name === '' || !$ids || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $start < 0) lumina_json(['ok' => false, 'error' => 'Name, treatment, date and time are required.'], 422);
+    $ph = $pdo->prepare("SELECT * FROM treatments WHERE id = ?");
+    $items = []; $totalMin = 0; $totalPrice = 0; $units = 1;
+    foreach ($ids as $id) { $ph->execute([$id]); $t = $ph->fetch(); if (!$t) lumina_json(['ok' => false, 'error' => 'Unknown treatment'], 422); $items[] = $t; $totalMin += (int)$t['minutes']; $totalPrice += (int)$t['price']; $units = max($units, (int)$t['units']); }
+    if (!$force) {
+        $starts = lumina_available_starts($pdo, $date, $totalMin, $units);
+        if (!in_array($start, $starts, true)) lumina_json(['ok' => false, 'full' => true, 'error' => 'That time is fully booked. Save anyway (overbook)?'], 409);
+    }
+    $ref = strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+    $token = bin2hex(random_bytes(24));
+    $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, status, source, token, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'phone', ?, ?)");
+    $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $start + $totalMin, $totalMin, $totalPrice, $units, $token, lumina_now()->format('Y-m-d H:i:s')]);
+    $bid = (int)$pdo->lastInsertId();
+    $ii = $pdo->prepare("INSERT INTO booking_items (booking_id, treatment_id, name_snapshot, minutes, price, start_min, end_min) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $t = $start;
+    foreach ($items as $it) { $ii->execute([$bid, (int)$it['id'], $it['name'], (int)$it['minutes'], (int)$it['price'], $t, $t + (int)$it['minutes']]); $t += (int)$it['minutes']; }
+    lumina_json(['ok' => true, 'ref' => $ref]);
+}
+
+if ($action === 'treatments') {
+    $rows = $pdo->query("SELECT * FROM treatments ORDER BY sort, id")->fetchAll();
+    lumina_json(['ok' => true, 'treatments' => $rows]);
+}
+if ($action === 'treatment_save') {
+    $in = body_json();
+    $id = (int)($in['id'] ?? 0);
+    $vals = [trim((string)$in['name']), trim((string)$in['cat']), (int)$in['minutes'], (int)$in['price'], (int)($in['units'] ?? 1), !empty($in['active']) ? 1 : 0, (int)($in['sort'] ?? 0)];
+    if ($vals[0] === '' || $vals[2] <= 0) lumina_json(['ok' => false, 'error' => 'Name and minutes are required.'], 422);
+    if ($id) { $vals[] = $id; $pdo->prepare("UPDATE treatments SET name=?, cat=?, minutes=?, price=?, units=?, active=?, sort=? WHERE id=?")->execute($vals); }
+    else $pdo->prepare("INSERT INTO treatments (name, cat, minutes, price, units, active, sort) VALUES (?, ?, ?, ?, ?, ?, ?)")->execute($vals);
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'technicians') {
+    lumina_json(['ok' => true, 'technicians' => $pdo->query("SELECT * FROM technicians ORDER BY sort, id")->fetchAll()]);
+}
+if ($action === 'technician_save') {
+    $in = body_json();
+    $id = (int)($in['id'] ?? 0);
+    $name = trim((string)($in['name'] ?? ''));
+    if ($name === '') lumina_json(['ok' => false, 'error' => 'Name required'], 422);
+    if ($id) $pdo->prepare("UPDATE technicians SET name=?, active=? WHERE id=?")->execute([$name, !empty($in['active']) ? 1 : 0, $id]);
+    else $pdo->prepare("INSERT INTO technicians (name, active) VALUES (?, 1)")->execute([$name]);
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'settings') {
+    lumina_json(['ok' => true, 'settings' => lumina_settings($pdo),
+                 'blocked' => $pdo->query("SELECT * FROM blocked_dates ORDER BY d")->fetchAll()]);
+}
+if ($action === 'settings_save') {
+    $in = body_json();
+    $allowed = ['open_min', 'close_min', 'slot_step', 'window_days', 'capacity', 'cancel_cutoff_hours'];
+    $st = $pdo->prepare("INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)");
+    foreach ($allowed as $k) if (isset($in[$k])) $st->execute([$k, (string)(int)$in[$k]]);
+    lumina_json(['ok' => true]);
+}
+if ($action === 'blocked_add') {
+    $in = body_json();
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['date'] ?? ''))) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
+    $pdo->prepare("INSERT IGNORE INTO blocked_dates (d, note) VALUES (?, ?)")->execute([$in['date'], trim((string)($in['note'] ?? ''))]);
+    lumina_json(['ok' => true]);
+}
+if ($action === 'blocked_remove') {
+    $in = body_json();
+    $pdo->prepare("DELETE FROM blocked_dates WHERE d = ?")->execute([(string)($in['date'] ?? '')]);
+    lumina_json(['ok' => true]);
+}
+
+lumina_json(['ok' => false, 'error' => 'Unknown action'], 400);

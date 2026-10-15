@@ -314,6 +314,7 @@
   .wk-day.off{opacity:.35;cursor:default}
   .tslot-h{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;font-weight:600}
   .fld textarea{resize:vertical;min-height:58px}
+  .chip.off{opacity:.35;text-decoration:line-through;pointer-events:none}
 </style>
 </head>
 <body>
@@ -457,8 +458,13 @@
       <div class="confirm" id="confirmBox" style="display:none">
       <h4>Your booking details</h4>
       <p id="confirmText"></p>
-      <p style="margin-top:8px;color:var(--muted);font-size:14px">One last step — call us to confirm and we will book you in:</p>
-      <p style="margin-top:10px"><a class="btn" href="tel:+16473688148" style="display:inline-block;width:auto;padding:11px 24px">Call 647-368-8148 to Confirm</a></p>
+      <div id="callStep"><p style="margin-top:8px;color:var(--muted);font-size:14px">One last step — call us to confirm and we will book you in:</p>
+      <p style="margin-top:10px"><a class="btn" href="tel:+16473688148" style="display:inline-block;width:auto;padding:11px 24px">Call 647-368-8148 to Confirm</a></p></div>
+      <div id="bookedOk" style="display:none">
+      <p id="okText" style="margin-top:8px;font-size:15.5px"></p>
+      <p style="margin-top:10px"><a class="btn" id="manageLink" href="#" style="display:inline-block;width:auto;padding:11px 24px">View / Change My Booking</a></p>
+      <p style="margin-top:8px;color:var(--muted);font-size:14px">Need anything sooner? Call us at <a href="tel:+16473688148">647-368-8148</a>.</p>
+      </div>
     </div>
     </div>
   </div>
@@ -471,7 +477,7 @@
     <p class="rail-hint" id="railHint"></p>
   </div></aside>
 </div>
-    <p class="demo-note">Online booking is launching very soon — for now, pick your treatment and time above, then call us to confirm.</p>
+    <p class="demo-note" id="bkModeNote">Online booking is launching very soon — for now, pick your treatment and time above, then call us to confirm.</p>
   </div>
 </div></section>
 
@@ -546,6 +552,7 @@
   var panels={1:document.getElementById('panelServices'),2:document.getElementById('panelTime'),3:document.getElementById('panelDetails'),4:document.getElementById('panelConfirm')};
   var crumbs=[].slice.call(document.querySelectorAll('#bkCrumbs [data-goto]'));
   var picks=[], step=1;
+  var liveMode=false, treatIds={}, availSet=null, availSeq=0;
   var selDay=null, selDayLabel='', selTime=null, selEnd=null, selStartMin=null, weekIdx=0;
   var today=new Date(); today.setHours(0,0,0,0);
   var lastDay=new Date(today); lastDay.setDate(today.getDate()+WINDOW_DAYS);
@@ -607,7 +614,7 @@
     railDur.textContent=picks.length? 'Total time: '+fmtDur(totalMin()) : '';
     backB.style.visibility=(step>1&&step<4)?'visible':'hidden';
     nextB.style.display=step<4?'':'none';
-    nextB.textContent=step===3?'Show My Booking Details':'Next';
+    nextB.textContent=step===3?(liveMode?'Confirm My Booking':'Show My Booking Details'):'Next';
     crumbs.forEach(function(c){ c.classList.toggle('on', parseInt(c.dataset.goto,10)===step); });
     if(step===1) railHint.textContent=picks.length?'Looking good — tap Next to pick a date & time.':'Tap a treatment to add it. You can add up to '+MAX_PICKS+' in one visit.';
     else if(step===2) railHint.textContent=selTime?'Tap Next to leave your details.':'Pick a day, then a start time — your treatments run one after another.';
@@ -639,6 +646,7 @@
     selTime=null; selEnd=null; selStartMin=null;
     refreshBadges();
     if(selDay) buildTimes();
+    refreshAvail();
     renderRail();
   }
   document.querySelectorAll('.trow').forEach(function(r){
@@ -666,7 +674,7 @@
         b.addEventListener('click',function(){
           selDay=dt; selDayLabel=fmtFull.format(dt);
           selTime=null; selEnd=null; selStartMin=null;
-          renderStrip(); buildTimes(); renderRail();
+          renderStrip(); buildTimes(); refreshAvail(); renderRail();
         });
         stripEl.appendChild(b);
       })(i);
@@ -685,7 +693,7 @@
     var now=new Date(); var isToday=selDay && selDay.getTime()===today.getTime();
     var nowMin=now.getHours()*60+now.getMinutes();
     var groups=[['Morning',0,12*60],['Afternoon',12*60,17*60],['Evening',17*60,24*60]];
-    var any=false;
+    var any=false, made=0, offed=0;
     groups.forEach(function(g){
       var wrap=null;
       for(var st=OPEN; st+dur<=CLOSE; st+=STEP){
@@ -698,6 +706,7 @@
         any=true;
         (function(st,wrap){
           var b=document.createElement('button'); b.type='button'; b.className='chip'; b.textContent=fmtTime(st);
+          made++; if(availSet && !availSet.has(st)){ b.classList.add('off'); b.disabled=true; offed++; }
           if(selStartMin===st) b.classList.add('sel');
           b.addEventListener('click',function(){
             timesEl.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel')});
@@ -708,6 +717,11 @@
         })(st,wrap);
       }
     });
+    if(availSet && made>0 && made===offed){
+      var full=document.createElement('span'); full.style.cssText='color:var(--muted);font-size:14.5px';
+      full.textContent='Fully booked that day for this visit — please try another day.';
+      timesEl.appendChild(full);
+    }
     if(!any){
       var none=document.createElement('span'); none.style.cssText='color:var(--muted);font-size:14.5px';
       none.textContent='No times left for this treatment today — please pick another day.';
@@ -724,6 +738,7 @@
     if(em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ errEl.textContent='That email looks incomplete — please check it, or clear it (email is optional).'; errEl.style.display='block'; return; }
     errEl.textContent='Please complete each step: treatment, date, time, and your name and phone number.';
     errEl.style.display='none';
+    if(liveMode){ submitBooking(nm, ph, em, nt); return; }
     var t=selStartMin, parts=[];
     picks.forEach(function(r){
       var d=parseInt(r.dataset.min,10)||0;
@@ -735,6 +750,66 @@
     box.style.display='block';
     goStep(4);
   }
+
+
+  /* ---------- live booking backend (activates itself when the API is installed) ---------- */
+  function isoOf(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function refreshAvail(){
+    if(!liveMode||!selDay) return;
+    var dur=totalMin()||60;
+    var units=picks.some(function(r){ return /for Two$/.test(r.dataset.name); })?2:1;
+    var seq=++availSeq;
+    fetch('api/public.php?action=availability&date='+isoOf(selDay)+'&minutes='+dur+'&units='+units)
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(seq!==availSeq||!j.ok) return;
+        availSet=new Set(j.starts);
+        if(selStartMin!==null && !availSet.has(selStartMin)){ selTime=null; selEnd=null; selStartMin=null; }
+        buildTimes(); renderRail();
+      }).catch(function(){});
+  }
+  function syncTreatments(){
+    fetch('api/public.php?action=treatments').then(function(r){ return r.json(); }).then(function(j){
+      if(!j.ok) return;
+      var list=j.treatments||[];
+      list.forEach(function(t){ treatIds[t.name]=t.id; });
+      document.querySelectorAll('.trow').forEach(function(r){
+        var t=null; list.forEach(function(x){ if(x.name===r.dataset.name) t=x; });
+        if(!t) return;
+        r.dataset.price=t.price; r.dataset.min=t.minutes;
+        var tp=r.querySelector('.tp');
+        if(tp){ tp.childNodes[0].textContent='$'+t.price; var tm=tp.querySelector('.tmin'); if(tm) tm.textContent=t.minutes+' MIN'; }
+      });
+    }).catch(function(){});
+  }
+  function submitBooking(nm, ph, em, nt){
+    nextB.disabled=true; nextB.textContent='Booking\u2026';
+    fetch('api/public.php?action=book', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name:nm, phone:ph, email:em, note:nt, date:isoOf(selDay), start:selStartMin,
+        items: picks.map(function(r){ return treatIds[r.dataset.name]; }).filter(function(x){ return x; })})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        nextB.disabled=false;
+        if(!j.ok){ errEl.textContent=j.error||'Something went wrong — please try again, or call us at 647-368-8148.'; errEl.style.display='block'; refreshAvail(); return; }
+        document.getElementById('confirmText').textContent =
+          nm+' \u00B7 '+j.summary.lines.join(' \u00B7 ')+' on '+j.summary.dayLabel+'. Total $'+j.summary.totalPrice+'. We have your number as '+ph+(em? ', and your email as '+em : '')+'.'+(nt? ' Your note: '+nt : '');
+        document.getElementById('callStep').style.display='none';
+        var ok=document.getElementById('bookedOk'); ok.style.display='block';
+        document.getElementById('okText').textContent='\u2713 Request received — your reference is '+j.ref+'. The shop will confirm your booking shortly.'+(em? ' A confirmation email is on its way to '+em+', with a private link to change or cancel.' : ' Use the button below to change or cancel your booking.');
+        document.getElementById('manageLink').href=j.manageUrl;
+        box.style.display='block';
+        goStep(4);
+      })
+      .catch(function(){ nextB.disabled=false; renderRail(); errEl.textContent='We could not reach the booking system — please try again, or call us at 647-368-8148.'; errEl.style.display='block'; });
+  }
+  fetch('api/public.php?action=health').then(function(r){ return r.json(); }).then(function(j){
+    if(j && j.live){
+      liveMode=true;
+      var note=document.getElementById('bkModeNote');
+      if(note) note.textContent='Book right here — your request goes straight to the shop, and we email you a confirmation with a link to change or cancel.';
+      syncTreatments(); refreshAvail(); renderRail();
+    }
+  }).catch(function(){});
 
   /* ---------- init: first treatment + today pre-selected ---------- */
   var firstRow=document.querySelector('.trow.sel');
