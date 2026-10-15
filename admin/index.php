@@ -71,6 +71,7 @@
   <div class="wrap">
     <div class="tabs">
       <button class="tab on" data-tab="bookings">Bookings<span class="n hidden" id="pendCount"></span></button>
+      <button class="tab" data-tab="messages">Messages<span class="n hidden" id="msgCount"></span></button>
       <button class="tab" data-tab="phone">Phone Booking</button>
       <button class="tab" data-tab="treatments">Treatments</button>
       <button class="tab" data-tab="techs">Technicians</button>
@@ -93,6 +94,10 @@
         <div class="cal" id="calGrid"></div>
         <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Numbers show bookings that day · <span style="color:var(--red);font-weight:700">red</span> = waiting for confirmation. Tap a day to see its bookings.</p>
       </div>
+    </section>
+
+    <section id="tab-messages" class="hidden">
+      <div id="msgList"></div>
     </section>
 
     <section id="tab-phone" class="hidden">
@@ -180,7 +185,7 @@ document.querySelectorAll('.tab').forEach(function(t){
   t.addEventListener('click', function(){
     document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
     t.classList.add('on');
-    ['bookings','phone','treatments','techs','settings'].forEach(function(k){ $('tab-'+k).classList.toggle('hidden', k!==t.dataset.tab); });
+    ['bookings','messages','phone','treatments','techs','settings'].forEach(function(k){ $('tab-'+k).classList.toggle('hidden', k!==t.dataset.tab); });
   });
 });
 
@@ -345,9 +350,28 @@ $('blockedList').addEventListener('click', function(e){
   if(e.target.classList.contains('unblock')) api('blocked_remove', {method:'POST', body:{date: e.target.dataset.d}}).then(loadSettings);
 });
 
+function loadMessages(){
+  api('messages').then(function(j){
+    var list = j.messages||[];
+    var unseen = list.filter(function(m){ return m.seen==0; }).length;
+    $('msgCount').textContent = unseen; $('msgCount').classList.toggle('hidden', !unseen);
+    $('msgList').innerHTML = list.length? list.map(function(m){
+      return '<div class="card"><b>'+esc(m.name)+'</b> <span style="color:var(--muted)">'+esc(m.email)+(m.phone?' · '+esc(m.phone):'')+' · '+esc(m.created_at)+'</span>'
+        + (m.seen==0?' <span class="badge pending">New</span>':'')
+        + '<div style="margin-top:8px;white-space:pre-wrap">'+esc(m.message)+'</div>'
+        + '<div style="margin-top:10px"><a class="act" href="mailto:'+esc(m.email)+'">Reply by email</a>'
+        + '<button class="act" data-msg="'+m.id+'" data-seen="'+(m.seen==0?1:0)+'">'+(m.seen==0?'Mark as read':'Mark as unread')+'</button></div></div>';
+    }).join('') : '<p style="color:var(--muted)">No messages yet — they will appear here when a guest writes from the About &amp; Contact page.</p>';
+  });
+}
+$('msgList').addEventListener('click', function(e){
+  var b = e.target.closest ? e.target.closest('button[data-msg]') : null;
+  if(!b) return;
+  api('message_seen', {method:'POST', body:{id: parseInt(b.dataset.msg,10), seen: b.dataset.seen==='1'}}).then(loadMessages);
+});
 function loadAll(){
   $('dayPick').value = viewDay; $('mDate').value = todayStr();
-  loadBookings(); loadTreatments(); loadTechs(); loadSettings();
+  loadBookings(); loadMessages(); loadTreatments(); loadTechs(); loadSettings();
 }
 </script>
 </body>

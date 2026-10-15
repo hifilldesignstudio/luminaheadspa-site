@@ -103,6 +103,27 @@ if ($action === 'book') {
                  'summary' => ['date' => $date, 'dayLabel' => $when, 'lines' => $lines, 'totalPrice' => $totalPrice, 'totalMin' => $totalMin]]);
 }
 
+/* ---------- contact form (About & Contact page) ---------- */
+if ($action === 'contact') {
+    $in = body_json();
+    if (!empty($in['website'])) lumina_json(['ok' => true]); /* honeypot: bots get a fake success */
+    $name = mb_substr(trim((string)($in['name'] ?? '')), 0, 120);
+    $email = trim((string)($in['email'] ?? ''));
+    $phone = mb_substr(trim((string)($in['phone'] ?? '')), 0, 40);
+    $msg = mb_substr(trim((string)($in['message'] ?? '')), 0, 4000);
+    if ($name === '' || $msg === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        lumina_json(['ok' => false, 'error' => 'Please add your name, a valid email and your message.'], 422);
+    }
+    try {
+        $pdo->prepare("INSERT INTO messages (name, email, phone, message, created_at) VALUES (?, ?, ?, ?, ?)")
+            ->execute([$name, $email, $phone, $msg, lumina_now()->format('Y-m-d H:i:s')]);
+    } catch (Exception $e) { /* the email below still goes out */ }
+    $shop = $cfg['shop_email'] ?? 'info@luminaheadspa.ca';
+    lumina_mail($shop, "Website message from $name",
+        "New message from the Lumina website contact form:\n\nName: $name\nEmail: $email\nPhone: " . ($phone ?: '(not given)') . "\n\n$msg\n\n— Just reply to this email to answer them.", $email);
+    lumina_json(['ok' => true]);
+}
+
 /* ---------- customer self-manage ---------- */
 function find_by_token($pdo, $token) {
     $st = $pdo->prepare("SELECT * FROM bookings WHERE token = ?");

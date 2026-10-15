@@ -105,6 +105,15 @@ if ($action === 'phone_booking') {
     lumina_json(['ok' => true, 'ref' => $ref]);
 }
 
+if ($action === 'messages') {
+    lumina_json(['ok' => true, 'messages' => $pdo->query("SELECT * FROM messages ORDER BY id DESC LIMIT 200")->fetchAll()]);
+}
+if ($action === 'message_seen') {
+    $in = body_json();
+    $pdo->prepare("UPDATE messages SET seen = ? WHERE id = ?")->execute([!empty($in['seen']) ? 1 : 0, (int)($in['id'] ?? 0)]);
+    lumina_json(['ok' => true]);
+}
+
 if ($action === 'treatments') {
     $rows = $pdo->query("SELECT * FROM treatments ORDER BY sort, id")->fetchAll();
     lumina_json(['ok' => true, 'treatments' => $rows]);

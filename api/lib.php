@@ -104,11 +104,11 @@ function lumina_available_starts($pdo, $dateStr, $totalMin, $units, $excludeId =
     return $out;
 }
 
-function lumina_mail($to, $subject, $body) {
+function lumina_mail($to, $subject, $body, $replyTo = null) {
     $cfg = lumina_config();
     $from = $cfg && !empty($cfg['shop_email']) ? $cfg['shop_email'] : 'info@luminaheadspa.ca';
     $headers = "From: Lumina Head Spa & Beauty <$from>\r\n"
-             . "Reply-To: $from\r\n"
+             . "Reply-To: " . ($replyTo ?: $from) . "\r\n"
              . "Content-Type: text/plain; charset=utf-8\r\n";
     return @mail($to, $subject, $body, $headers);
 }
