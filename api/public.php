@@ -48,7 +48,7 @@ if ($action === 'book') {
     $note = trim((string)($in['note'] ?? ''));
     $date = (string)($in['date'] ?? '');
     $start = (int)($in['start'] ?? -1);
-    $ids = array_slice(array_map('intval', (array)($in['items'] ?? [])), 0, 2);
+    $ids = array_slice(array_map('intval', (array)($in['items'] ?? [])), 0, 5);
     if ($name === '' || $phone === '' || !$ids || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         lumina_json(['ok' => false, 'error' => 'Please complete your name, phone, treatment, date and time.'], 422);
     }

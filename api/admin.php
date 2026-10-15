@@ -83,7 +83,7 @@ if ($action === 'phone_booking') {
     $name = trim((string)($in['name'] ?? '')); $phone = trim((string)($in['phone'] ?? ''));
     $email = trim((string)($in['email'] ?? '')); $note = trim((string)($in['note'] ?? ''));
     $date = (string)($in['date'] ?? ''); $start = (int)($in['start'] ?? -1);
-    $ids = array_slice(array_map('intval', (array)($in['items'] ?? [])), 0, 2);
+    $ids = array_slice(array_map('intval', (array)($in['items'] ?? [])), 0, 5);
     $force = !empty($in['force']);
     if ($name === '' || !$ids || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $start < 0) lumina_json(['ok' => false, 'error' => 'Name, treatment, date and time are required.'], 422);
     $ph = $pdo->prepare("SELECT * FROM treatments WHERE id = ?");
