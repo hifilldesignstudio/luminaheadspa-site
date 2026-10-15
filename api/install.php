@@ -89,7 +89,7 @@ $treatments = [
   ['Nourishing Scalp Cleansing Treatment', 'Head Spa', 60, 88, 1],
   ['Deep Cleansing & Firming Facial', 'Facial', 60, 68, 1],
   ['Probiotic Skincare Treatment', 'Facial', 60, 108, 1],
-  ['Hydrafacial', 'Facial', 90, 128, 1],
+  ['HydroGlow Facial', 'Facial', 90, 128, 1],
   ['Swedish Massage', 'Massage', 60, 78, 1],
   ['Foot Reflexology', 'Massage', 60, 78, 1],
   ['Hot Stone Massage', 'Massage', 60, 88, 1],
