@@ -70,6 +70,64 @@ if ($action === 'month_counts') {
     lumina_json(['ok' => true, 'counts' => $out]);
 }
 
+if ($action === 'month_report') {
+    /* Monthly record: aggregates + the month's booking rows (for the CSV
+       download). Records are kept permanently; this is the shop's monthly
+       bookkeeping view. Revenue/counts exclude cancelled bookings except
+       where stated. */
+    $ym = $_GET['ym'] ?? lumina_now()->format('Y-m');
+    if (!preg_match('/^\d{4}-\d{2}$/', (string)$ym)) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
+    $like = $ym . '-%';
+    $techMap = [];
+    try { foreach ($pdo->query("SELECT id, name FROM technicians")->fetchAll() as $t) $techMap[(int)$t['id']] = $t['name']; } catch (Exception $e) {}
+    $st = $pdo->prepare("SELECT * FROM bookings WHERE date LIKE ? ORDER BY date, start_min LIMIT 1000");
+    $st->execute([$like]);
+    $rows = $st->fetchAll();
+    $counts = ['total' => 0, 'confirmed' => 0, 'pending' => 0, 'done' => 0, 'cancelled' => 0];
+    $revenue = 0; $guests = 0;
+    $perTech = []; $ids = [];
+    foreach ($rows as $b) {
+        $counts['total']++;
+        if (isset($counts[$b['status']])) $counts[$b['status']]++;
+        if ($b['status'] !== 'cancelled') {
+            $revenue += (int)$b['total_price']; $guests++;
+            $ids[] = (int)$b['id'];
+            foreach (['tech_id', 'tech2_id'] as $k) {
+                if (!empty($b[$k])) {
+                    $tid = (int)$b[$k];
+                    if (!isset($perTech[$tid])) $perTech[$tid] = ['name' => $techMap[$tid] ?? ('#' . $tid), 'bookings' => 0, 'minutes' => 0];
+                    $perTech[$tid]['bookings']++; $perTech[$tid]['minutes'] += (int)$b['total_min'];
+                }
+            }
+        }
+    }
+    $perTreatment = [];
+    if ($ids) {
+        $in = implode(',', array_map('intval', $ids));
+        foreach ($pdo->query("SELECT name_snapshot, COUNT(*) c FROM booking_items WHERE booking_id IN ($in) GROUP BY name_snapshot ORDER BY c DESC, name_snapshot") as $r) {
+            $perTreatment[] = ['name' => $r['name_snapshot'], 'count' => (int)$r['c']];
+        }
+    }
+    $out = [];
+    $itemSt = $pdo->prepare("SELECT name_snapshot FROM booking_items WHERE booking_id = ? ORDER BY start_min");
+    foreach ($rows as $b) {
+        $itemSt->execute([(int)$b['id']]);
+        $names = array_map(fn($r) => $r['name_snapshot'], $itemSt->fetchAll());
+        $out[] = [
+            'date' => $b['date'], 'time' => lumina_fmt_time((int)$b['start_min']), 'ref' => $b['ref'],
+            'name' => $b['name'], 'phone' => $b['phone'], 'email' => $b['email'],
+            'treatments' => implode(' + ', $names), 'total' => (int)$b['total_price'],
+            'status' => $b['status'], 'source' => $b['source'],
+            'therapist' => implode(' & ', array_filter([
+                !empty($b['tech_id']) ? ($techMap[(int)$b['tech_id']] ?? '') : '',
+                !empty($b['tech2_id']) ? ($techMap[(int)$b['tech2_id']] ?? '') : '',
+            ])),
+        ];
+    }
+    lumina_json(['ok' => true, 'ym' => $ym, 'counts' => $counts, 'revenue' => $revenue, 'bookingsServed' => $guests,
+                 'perTreatment' => $perTreatment, 'perTech' => array_values($perTech), 'rows' => $out]);
+}
+
 if ($action === 'booking_status') {
     $in = body_json();
     $id = (int)($in['id'] ?? 0);

@@ -50,6 +50,7 @@
   .cal .day small{display:block;color:var(--muted);font-size:11px}
   .cal .day.sel{border-color:var(--brass-d);background:#fdf6ea}
   .cal .day.off{opacity:.35;cursor:default}
+  .cal .day.past{opacity:.4;background:#efedea;cursor:default;color:var(--muted)}
   .cal .day .pend{color:var(--red);font-weight:700}
   #pCalGrid .day{cursor:default}
   #pCalGrid .day.bookable{cursor:pointer}
@@ -118,6 +119,13 @@
         <div class="row" style="margin-bottom:12px"><button class="act" id="calPrev">‹ Prev</button><b id="calTitle" style="text-align:center"></b><button class="act" id="calNext">Next ›</button></div>
         <div class="cal" id="calGrid"></div>
         <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Numbers show bookings that day · <span style="color:var(--red);font-weight:700">red</span> = waiting for confirmation. Tap a day to see its bookings.</p>
+      </div>
+      <h3 class="sec">Monthly report</h3>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px"><button class="act" id="repPrev">‹ Prev</button><b id="repTitle" style="text-align:center"></b><button class="act" id="repNext">Next ›</button></div>
+        <div id="repBody"><p style="color:var(--muted)">Loading…</p></div>
+        <button class="btn dark" id="repCsv" style="margin-top:12px">Download CSV</button>
+        <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Booking records are kept permanently — pick any month to see its totals, or download the month's bookings as a spreadsheet file. Revenue excludes cancelled bookings.</p>
       </div>
     </section>
 
@@ -278,6 +286,7 @@ function loadBookings(){
     $('dayList').innerHTML = list.length? list.map(cardHTML).join('') : '<p style="color:var(--muted)">No bookings found.</p>';
   });
   loadCal();
+  loadReport();
 }
 document.body.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('button.assignBtn') : null;
@@ -315,6 +324,49 @@ function loadCal(){
 }
 $('calPrev').addEventListener('click', function(){ calM--; if(calM<0){calM=11;calY--;} loadCal(); });
 $('calNext').addEventListener('click', function(){ calM++; if(calM>11){calM=0;calY++;} loadCal(); });
+
+/* ---------- monthly report (permanent booking records) ---------- */
+var repY, repM, repData = null;
+(function(){ var d = new Date(); repY = d.getFullYear(); repM = d.getMonth(); })();
+function loadReport(){
+  var ym = repY+'-'+String(repM+1).padStart(2,'0');
+  $('repTitle').textContent = new Date(repY, repM, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
+  api('month_report', {qs:'&ym='+ym}).then(function(j){
+    if(!j.ok){ $('repBody').innerHTML = '<p class="err">'+esc(j.error||'Could not load the report.')+'</p>'; repData = null; return; }
+    if(ym !== repY+'-'+String(repM+1).padStart(2,'0')) return; /* month moved on while loading */
+    repData = j;
+    var c = j.counts||{};
+    var h = '<div style="display:flex;gap:22px;flex-wrap:wrap;font-size:15px">'
+      + '<div>Bookings<br><b style="font-size:20px">'+(c.total||0)+'</b></div>'
+      + '<div>Served (not cancelled)<br><b style="font-size:20px">'+(j.bookingsServed||0)+'</b></div>'
+      + '<div>Cancelled<br><b style="font-size:20px">'+(c.cancelled||0)+'</b></div>'
+      + '<div>Revenue<br><b style="font-size:20px">$'+(j.revenue||0)+'</b></div></div>';
+    if((j.perTreatment||[]).length){
+      h += '<h4 style="margin:16px 0 6px;font-size:13px;letter-spacing:.08em;color:var(--muted)">TREATMENTS BOOKED</h4>'
+        + j.perTreatment.map(function(t){ return '<div style="font-size:14.5px">'+esc(t.name)+' · '+t.count+'</div>'; }).join('');
+    }
+    if((j.perTech||[]).length){
+      h += '<h4 style="margin:16px 0 6px;font-size:13px;letter-spacing:.08em;color:var(--muted)">BY THERAPIST</h4>'
+        + j.perTech.map(function(t){ return '<div style="font-size:14.5px">'+esc(t.name)+' · '+t.bookings+' bookings · '+t.minutes+' min</div>'; }).join('');
+    }
+    if(!c.total) h += '<p style="color:var(--muted);margin-top:10px">No bookings recorded this month yet.</p>';
+    $('repBody').innerHTML = h;
+  });
+}
+$('repPrev').addEventListener('click', function(){ repM--; if(repM<0){repM=11;repY--;} loadReport(); });
+$('repNext').addEventListener('click', function(){ repM++; if(repM>11){repM=0;repY++;} loadReport(); });
+$('repCsv').addEventListener('click', function(){
+  if(!repData || !(repData.rows||[]).length){ alert('No bookings to download for this month.'); return; }
+  var q = function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  var lines = [['Date','Time','Reference','Guest','Phone','Email','Treatments','Total ($)','Status','Source','Therapist'].join(',')];
+  repData.rows.forEach(function(r){ lines.push([r.date, r.time, r.ref, r.name, r.phone, r.email, r.treatments, r.total, r.status, r.source, r.therapist].map(q).join(',')); });
+  var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lumina-bookings-'+repData.ym+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+});
 
 /* ---------- phone booking ---------- */
 var STAFFMODE = false, TECHLIST = [];
@@ -513,6 +565,7 @@ var ROSTER = {};   /* techId -> {y, m, days: {dateStr: tech_month entry}, sel: d
 function fmtMin(x){ var h = Math.floor(x/60), m = x % 60, h12 = h % 12 || 12; return m? h12+':'+String(m).padStart(2,'0') : ''+h12; }
 function fmtHrs(a, b){ return fmtMin(a)+'\u2013'+fmtMin(b); }
 function rosterDayCell(id, ds, dnum, entry){
+  if(ds < todayStr()) return '<div class="day past">'+dnum+'</div>'; /* past days are not shown or editable */
   var cls = 'day';
   if(entry && (entry.source==='shift' || entry.source==='off_override')) cls += ' ovr';
   if(ds === todayStr()) cls += ' today';
@@ -639,6 +692,7 @@ function renderTeamMonth(){
   for(var i=0;i<lead;i++) h += '<div></div>';
   for(var n=1; n<=dim; n++){
     var ds = ym+'-'+String(n).padStart(2,'0');
+    if(ds < todayStr()){ h += '<div class="day past"><div class="tnum">'+n+'</div></div>'; continue; } /* past days are not shown */
     var cell = '<div class="day'+(ds === todayStr()? ' today' : '')+'"><div class="tnum">'+n+'</div>';
     techs.forEach(function(t){
       var w = days && days[ds]? days[ds][t.id] : undefined;
