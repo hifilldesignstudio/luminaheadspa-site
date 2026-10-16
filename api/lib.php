@@ -225,6 +225,34 @@ function lumina_ensure_modelb($pdo) {
     } catch (Exception $e) { /* tables may not exist yet */ }
 }
 
+/* Treatment groups, managed in the admin (Treatments tab). The group list
+   drives the Group dropdown on each treatment row so a typo can't split a
+   group in two. Seeded once from the distinct group names already in use,
+   in their current display order. Treatments keep their group as a plain
+   string — deleting a group never touches treatments. */
+function lumina_ensure_groups($pdo) {
+    static $done = false;
+    if ($done || !$pdo) return;
+    $done = true;
+    try {
+        $tbl = $pdo->query("SHOW TABLES LIKE 'treatment_groups'")->fetch();
+        if (!$tbl) {
+            $pdo->exec("CREATE TABLE treatment_groups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                sort INT NOT NULL DEFAULT 0,
+                UNIQUE KEY name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        }
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM treatment_groups")->fetchColumn();
+        if ($n === 0) {
+            $cats = $pdo->query("SELECT cat FROM treatments WHERE cat <> '' GROUP BY cat ORDER BY MIN(sort), MIN(id)")->fetchAll(PDO::FETCH_COLUMN);
+            $ins = $pdo->prepare("INSERT IGNORE INTO treatment_groups (name, sort) VALUES (?, ?)");
+            foreach ($cats as $i => $c) $ins->execute([$c, ($i + 1) * 10]);
+        }
+    } catch (Exception $e) { /* table may not exist yet */ }
+}
+
 function lumina_mode($pdo) {
     /* Single-model system (2026-10-16, per Illo): there is no shared-pool
        mode anymore — every booking belongs to the technician team. The

@@ -339,6 +339,54 @@ if ($action === 'treatment_save') {
     lumina_json(['ok' => true]);
 }
 
+if ($action === 'groups') {
+    lumina_ensure_groups($pdo);
+    $rows = $pdo->query("SELECT g.id, g.name, g.sort, (SELECT COUNT(*) FROM treatments t WHERE t.cat = g.name) AS n FROM treatment_groups g ORDER BY g.sort, g.id")->fetchAll();
+    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['sort'] = (int)$r['sort']; $r['n'] = (int)$r['n']; }
+    unset($r);
+    lumina_json(['ok' => true, 'groups' => $rows]);
+}
+
+if ($action === 'group_add') {
+    lumina_ensure_groups($pdo);
+    $in = body_json();
+    $name = trim((string)($in['name'] ?? ''));
+    if ($name === '') lumina_json(['ok' => false, 'error' => 'Group name required'], 422);
+    $max = (int)$pdo->query("SELECT COALESCE(MAX(sort), 0) FROM treatment_groups")->fetchColumn();
+    $st = $pdo->prepare("INSERT IGNORE INTO treatment_groups (name, sort) VALUES (?, ?)");
+    $st->execute([$name, $max + 10]);
+    if ($st->rowCount() === 0) lumina_json(['ok' => false, 'error' => 'That group already exists.'], 409);
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'group_delete') {
+    lumina_ensure_groups($pdo);
+    $in = body_json();
+    $name = trim((string)($in['name'] ?? ''));
+    $q = $pdo->prepare("SELECT COUNT(*) FROM treatments WHERE cat = ?");
+    $q->execute([$name]);
+    $n = (int)$q->fetchColumn();
+    if ($n > 0) lumina_json(['ok' => false, 'error' => "$n treatment(s) still use this group — move them to another group first, then delete it."], 422);
+    $pdo->prepare("DELETE FROM treatment_groups WHERE name = ?")->execute([$name]);
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'treatment_delete') {
+    /* Same protection as technicians: a treatment that appears in past
+       bookings is hidden (deactivated) instead of deleted, so booking
+       records and reports stay correct. */
+    $in = body_json();
+    $id = (int)($in['id'] ?? 0);
+    $q = $pdo->prepare("SELECT COUNT(*) FROM booking_items WHERE treatment_id = ?");
+    $q->execute([$id]);
+    if ((int)$q->fetchColumn() > 0) {
+        $pdo->prepare("UPDATE treatments SET active = 0 WHERE id = ?")->execute([$id]);
+        lumina_json(['ok' => true, 'mode' => 'hidden']);
+    }
+    $pdo->prepare("DELETE FROM treatments WHERE id = ?")->execute([$id]);
+    lumina_json(['ok' => true, 'mode' => 'deleted']);
+}
+
 if ($action === 'technicians') {
     lumina_ensure_tech_email($pdo);
     lumina_ensure_modelb($pdo);
