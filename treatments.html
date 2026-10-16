@@ -31,6 +31,11 @@
 
   /* header */
   .topbar{background:var(--deep);color:#e9e2d4;font-size:13px;letter-spacing:.06em}
+.promo-ticker{background:linear-gradient(90deg,#c9a35f,#e6cc8d,#c9a35f);color:#241d12;overflow:hidden;padding:8px 0;font-size:12.5px;font-weight:700;letter-spacing:.14em}
+.promo-track{display:flex;width:max-content;animation:promoScroll 28s linear infinite}
+.promo-track span{white-space:nowrap}
+@keyframes promoScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.promo-track{animation:none}}
   .topbar .wrap{display:flex;justify-content:space-between;gap:14px;padding-top:8px;padding-bottom:8px;flex-wrap:wrap}
   .topbar a{color:#e9e2d4;text-decoration:none}
   header.site{position:sticky;top:0;background:rgba(20,17,13,.97);backdrop-filter:blur(8px);border-bottom:1px solid #3a332a;z-index:50}
@@ -342,6 +347,7 @@
   <span>Open 7 days · 10:00 AM – 9:00 PM &nbsp;·&nbsp; <a href="tel:+16473688148">647-368-8148</a></span>
 </div></div>
 
+<div class="promo-ticker" role="note"><div class="promo-track"><span>SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; </span><span>SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; SOFT OPENING SPECIAL &nbsp;✦&nbsp; 10% OFF ALL TREATMENTS &nbsp;✦&nbsp; FIRST MONTH ONLY &nbsp;✦&nbsp; BOOK YOUR VISIT TODAY &nbsp;✦&nbsp; </span></div></div>
 <header class="site"><div class="wrap">
   <a class="logo" href="index.html"><img src="lumina-logo.svg" alt="Lumina Head Spa &amp; Beauty"></a>
   <nav class="main">
