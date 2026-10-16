@@ -176,7 +176,8 @@
         <div class="grid">
           <div><label>Opens</label><select id="sOpen"></select></div>
           <div><label>Closes</label><select id="sClose"></select></div>
-          <div><label>Simultaneous guests (capacity)</label><input id="sCap" type="number" min="1" max="10"></div>
+          <div id="sCapRow"><label>Simultaneous guests (capacity)</label><input id="sCap" type="number" min="1" max="10"></div>
+          <div id="sCapNote" class="hidden"><label>Simultaneous guests</label><p style="color:var(--muted);font-size:13px;margin-top:2px">Automatic in Per-technician mode — availability follows the technicians' schedules, so there is no separate number to set. The system counts the day's guests for you (see the Calendar on the Bookings tab).</p></div>
           <div><label>Book ahead (days)</label><input id="sWin" type="number" min="1" max="90"></div>
           <div><label>Online cancel cutoff (hours before)</label><input id="sCut" type="number" min="0" max="48"></div>
           <div><label>Booking mode</label><select id="sMode"><option value="pool">Shared pool</option><option value="staff">Per-technician</option></select>
@@ -450,6 +451,8 @@ function fillTechSelects(){
 }
 function syncStaffUI(){
   var w = $('mTechWrap'); if(w) w.classList.toggle('hidden', !STAFFMODE);
+  var cr = $('sCapRow'); if(cr) cr.classList.toggle('hidden', STAFFMODE);
+  var cn = $('sCapNote'); if(cn) cn.classList.toggle('hidden', !STAFFMODE);
   fillTechSelects();
 }
 function loadTechs(){
@@ -792,6 +795,7 @@ function loadSettings(){
     $('blockedList').innerHTML = (j.blocked||[]).map(function(b){ return '<div style="margin-bottom:6px"><b>'+esc(b.d)+'</b> '+esc(b.note||'')+' <button class="act cancel unblock" data-d="'+esc(b.d)+'">Remove</button></div>'; }).join('') || '<p style="color:var(--muted)">No blocked dates.</p>';
   });
 }
+$('sMode').addEventListener('change', function(){ STAFFMODE = $('sMode').value==='staff'; syncStaffUI(); });
 $('saveSettings').addEventListener('click', function(){
   api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value, booking_mode: $('sMode').value}})
     .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); if(j.ok){ loadSettings(); loadBookings(); } });
