@@ -37,6 +37,15 @@ function booking_full($pdo, $b) {
     }
     $b['techName'] = (!empty($b['tech_id']) && isset($techMap[(int)$b['tech_id']])) ? $techMap[(int)$b['tech_id']] : null;
     $b['tech2Name'] = (!empty($b['tech2_id']) && isset($techMap[(int)$b['tech2_id']])) ? $techMap[(int)$b['tech2_id']] : null;
+    /* For an unassigned booking, suggest a technician (least-loaded free
+       one) so the admin can confirm-and-assign in one tap. */
+    $b['suggest'] = null;
+    if (empty($b['tech_id']) && in_array($b['status'], ['pending', 'confirmed'], true)) {
+        try {
+            $as = lumina_staff_assign($pdo, $b['date'], (int)$b['start_min'], (int)$b['total_min'], max(1, (int)$b['units']), 0, (int)$b['id']);
+            if ($as) $b['suggest'] = $as['tech_id'];
+        } catch (Exception $e) {}
+    }
     $st = $pdo->prepare("SELECT name_snapshot, minutes, price, start_min, end_min FROM booking_items WHERE booking_id = ? ORDER BY start_min");
     $st->execute([$b['id']]);
     $items = $st->fetchAll();
@@ -168,9 +177,8 @@ if ($action === 'phone_availability') {
     if (!$first || $first->format('Y-m') !== $ym) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
     $minutes = max(1, (int)($_GET['minutes'] ?? 60));
     $units = max(1, (int)($_GET['units'] ?? 1));
-    $staffMode = lumina_mode($pdo) === 'staff';
-    $techId = $staffMode ? (int)($_GET['techId'] ?? 0) : 0;
-    if ($staffMode) lumina_ensure_modelb($pdo);
+    $techId = (int)($_GET['techId'] ?? 0);
+    lumina_ensure_modelb($pdo);
     $set = lumina_settings($pdo);
     $today = lumina_now()->format('Y-m-d');
     $last = lumina_now()->modify('+' . (int)$set['window_days'] . ' days')->format('Y-m-d');
@@ -181,9 +189,7 @@ if ($action === 'phone_availability') {
         if ($ds < $today) { $days[$ds] = ['starts' => 0, 'state' => 'past']; continue; }
         if (lumina_blocked($pdo, $ds)) { $days[$ds] = ['starts' => 0, 'state' => 'blocked']; continue; }
         if ($ds > $last) { $days[$ds] = ['starts' => 0, 'state' => 'outside']; continue; }
-        $n = $staffMode
-            ? count(lumina_available_starts_staff($pdo, $ds, $minutes, $units, $techId)['starts'])
-            : count(lumina_available_starts($pdo, $ds, $minutes, $units));
+        $n = count(lumina_available_starts_staff($pdo, $ds, $minutes, $units, $techId)['starts']);
         $days[$ds] = ['starts' => $n, 'state' => $n >= 6 ? 'many' : ($n >= 3 ? 'some' : ($n >= 1 ? 'few' : 'full'))];
     }
     lumina_json(['ok' => true, 'days' => $days]);
@@ -201,35 +207,29 @@ if ($action === 'phone_booking') {
     $ph = $pdo->prepare("SELECT * FROM treatments WHERE id = ?");
     $items = []; $totalMin = 0; $totalPrice = 0; $units = 1;
     foreach ($ids as $id) { $ph->execute([$id]); $t = $ph->fetch(); if (!$t) lumina_json(['ok' => false, 'error' => 'Unknown treatment'], 422); $items[] = $t; $totalMin += (int)$t['minutes']; $totalPrice += (int)$t['price']; $units = max($units, (int)$t['units']); }
-    $staffMode = lumina_mode($pdo) === 'staff';
     $asTech = null; $asTech2 = null;
-    if ($staffMode) {
-        lumina_ensure_modelb($pdo);
+    lumina_ensure_modelb($pdo);
+    if ($techId > 0) {
         $as = lumina_staff_assign($pdo, $date, $start, $totalMin, $units, $techId, 0, $force);
-        if (!$as && !$force) lumina_json(['ok' => false, 'full' => true, 'error' => $techId > 0 ? 'That therapist is not free at this time. Save anyway (overbook)?' : 'No therapist is free at this time. Save anyway (overbook)?'], 409);
+        if (!$as && !$force) lumina_json(['ok' => false, 'full' => true, 'error' => 'That therapist is not free at this time. Save anyway (overbook)?'], 409);
         if ($as) { $asTech = $as['tech_id']; $asTech2 = $as['tech2_id']; }
     } elseif (!$force) {
-        $starts = lumina_available_starts($pdo, $date, $totalMin, $units);
-        if (!in_array($start, $starts, true)) lumina_json(['ok' => false, 'full' => true, 'error' => 'That time is fully booked. Save anyway (overbook)?'], 409);
+        /* "Assign later": the booking is created unassigned; feasibility
+           only checks the team can cover it. */
+        if (!lumina_team_feasible($pdo, $date, $start, $start + $totalMin, $units)) lumina_json(['ok' => false, 'full' => true, 'error' => 'No therapist is free at this time. Save anyway (overbook)?'], 409);
     }
     $ref = strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
     $token = bin2hex(random_bytes(24));
-    if ($staffMode) {
-        $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, tech_id, tech2_id, tech_pref, status, source, token, created_at)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'phone', ?, ?)");
-        $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $start + $totalMin, $totalMin, $totalPrice, $units, $asTech, $asTech2, $techId > 0 ? 1 : 0, $token, lumina_now()->format('Y-m-d H:i:s')]);
-    } else {
-        $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, status, source, token, created_at)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'phone', ?, ?)");
-        $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $start + $totalMin, $totalPrice, $units, $token, lumina_now()->format('Y-m-d H:i:s')]);
-    }
+    $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, tech_id, tech2_id, tech_pref, status, source, token, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'phone', ?, ?)");
+    $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $start + $totalMin, $totalMin, $totalPrice, $units, $asTech, $asTech2, $techId > 0 ? 1 : 0, $token, lumina_now()->format('Y-m-d H:i:s')]);
     $bid = (int)$pdo->lastInsertId();
     $ii = $pdo->prepare("INSERT INTO booking_items (booking_id, treatment_id, name_snapshot, minutes, price, start_min, end_min) VALUES (?, ?, ?, ?, ?, ?, ?)");
     $t = $start;
     foreach ($items as $it) { $ii->execute([$bid, (int)$it['id'], $it['name'], (int)$it['minutes'], (int)$it['price'], $t, $t + (int)$it['minutes']]); $t += (int)$it['minutes']; }
-    if ($staffMode) {
-        /* Staff mode only: the shop and the assigned technician(s) hear about
-           the phone booking. Pool mode sends no phone-booking notice, as before. */
+    {
+        /* The shop and the assigned technician(s) hear about the phone
+           booking (unassigned ones notify the shop only). */
         $lines = lumina_booking_lines($pdo, $bid);
         $withLine = lumina_with_line($pdo, ['tech_id' => $asTech, 'tech2_id' => $asTech2]);
         lumina_notify($pdo, "New phone booking $ref — $name, " . lumina_fmt_day($date),
@@ -489,8 +489,11 @@ if ($action === 'booking_assign') {
             $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
             lumina_json(['ok' => false, 'error' => $techId > 0 ? 'That therapist is not free at this booking\'s time — please pick another.' : 'No therapist is free at this booking\'s time.'], 422);
         }
-        $pdo->prepare("UPDATE bookings SET tech_id = ?, tech2_id = ?, tech_pref = ? WHERE id = ?")
-            ->execute([$as['tech_id'], $as['tech2_id'], $techId > 0 ? 1 : 0, $id]);
+        /* tech_pref is NOT touched: it records whether the GUEST picked the
+           technician (strict on reschedule), and an admin assignment must
+           not rewrite that history. */
+        $pdo->prepare("UPDATE bookings SET tech_id = ?, tech2_id = ? WHERE id = ?")
+            ->execute([$as['tech_id'], $as['tech2_id'], $id]);
     } finally {
         $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
     }

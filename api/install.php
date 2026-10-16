@@ -101,7 +101,7 @@ $set = $pdo->prepare("INSERT INTO settings (k, v) VALUES (?, ?)");
 foreach ([
     'open_min' => '600', 'close_min' => '1260', 'slot_step' => '30',
     'window_days' => '30', 'capacity' => '2', 'cancel_cutoff_hours' => '3',
-    'booking_mode' => 'pool',
+    'booking_mode' => 'staff',
 ] as $k => $v) $set->execute([$k, $v]);
 
 /* Treatments — exactly as on the website (order = price low to high within each group). */

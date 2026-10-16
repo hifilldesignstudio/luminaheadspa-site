@@ -37,7 +37,7 @@ function lumina_settings($pdo) {
     $defaults = [
         'open_min' => '600', 'close_min' => '1260', 'slot_step' => '30',
         'window_days' => '30', 'capacity' => '2', 'cancel_cutoff_hours' => '3',
-        'booking_mode' => 'pool',
+        'booking_mode' => 'staff',
     ];
     try {
         $rows = $pdo->query("SELECT k, v FROM settings")->fetchAll();
@@ -192,10 +192,10 @@ function lumina_booking_lines($pdo, $bookingId) {
     return $lines;
 }
 /* =====================================================================
-   Model B — per-technician booking (mode-gated by settings.booking_mode).
-   Everything below is inert while booking_mode = 'pool': the pool engine
-   above stays the only code path. Staff behaviour activates only when an
-   admin switches the setting to 'staff'.
+   Per-technician booking — the single booking model since 2026-10-16.
+   (The shared-pool engine above remains only as a legacy fallback for the
+   stored capacity setting; availability and booking all run through the
+   technician engine below.)
    ===================================================================== */
 
 /* Lazy, idempotent schema for Model B (mirrors lumina_ensure_tech_email). */
@@ -226,8 +226,10 @@ function lumina_ensure_modelb($pdo) {
 }
 
 function lumina_mode($pdo) {
-    $set = lumina_settings($pdo);
-    return (isset($set['booking_mode']) && $set['booking_mode'] === 'staff') ? 'staff' : 'pool';
+    /* Single-model system (2026-10-16, per Illo): there is no shared-pool
+       mode anymore — every booking belongs to the technician team. The
+       stored booking_mode setting is ignored. */
+    return 'staff';
 }
 
 /* Validate + normalize a weekly schedule. Accepts an array or JSON string.
@@ -441,6 +443,10 @@ function lumina_available_starts_staff($pdo, $dateStr, $totalMin, $units, $techI
         }
         if ($techId > 0) $ok = in_array($techId, $free, true) && ($units < 2 || count($free) >= 2);
         else $ok = count($free) >= $units;
+        /* Unassigned bookings (guest picked "No preference", the shop has
+           not assigned a technician yet) still have to land on somebody —
+           make sure a full placement of everything overlapping exists. */
+        if ($ok) $ok = lumina_team_feasible($pdo, $dateStr, $st, $st + $totalMin, $units, $excludeId, $techId > 0 ? [$techId] : []);
         if ($ok) { $starts[] = $st; $byStart[$st] = $free; }
     }
     return ['starts' => $starts, 'byStart' => $byStart, 'techs' => $techList];
@@ -481,4 +487,93 @@ function lumina_staff_assign($pdo, $dateStr, $start, $totalMin, $units, $techId 
     if (count($free) < $units) return null;
     usort($free, $byLoad);
     return ['tech_id' => (int)$free[0]['id'], 'tech2_id' => $units >= 2 ? (int)$free[1]['id'] : null];
+}
+
+/* Combinations of $k items from $items (order preserved). */
+function lumina_combos($items, $k) {
+    if ($k === 0) return [[]];
+    if (count($items) < $k) return [];
+    $out = [];
+    $n = count($items);
+    for ($i = 0; $i <= $n - $k; $i++) {
+        foreach (lumina_combos(array_slice($items, $i + 1), $k - 1) as $rest) {
+            $out[] = array_merge([$items[$i]], $rest);
+        }
+    }
+    return $out;
+}
+
+/* Backtracking placement: can every job still to place get its `need`
+   distinct technicians from its `win` list without clashing with the
+   intervals already in $occ (techId => [[s,e), ...])? */
+function lumina_place($jobs, $idx, &$occ) {
+    if ($idx >= count($jobs)) return true;
+    $j = $jobs[$idx];
+    $cand = [];
+    foreach ($j['win'] as $tid) {
+        $clash = false;
+        foreach ($occ[$tid] ?? [] as $iv) { if ($j['s'] < $iv[1] && $iv[0] < $j['e']) { $clash = true; break; } }
+        if (!$clash) $cand[] = $tid;
+    }
+    if (count($cand) < $j['need']) return false;
+    foreach (lumina_combos($cand, $j['need']) as $combo) {
+        foreach ($combo as $tid) $occ[$tid][] = [$j['s'], $j['e']];
+        if (lumina_place($jobs, $idx + 1, $occ)) return true;
+        foreach ($combo as $tid) array_pop($occ[$tid]);
+    }
+    return false;
+}
+
+/* Can the team cover one more booking [start, end) needing $units
+   technicians on $dateStr, alongside every existing pending/confirmed
+   booking? Assigned bookings stay pinned to their technicians; UNASSIGNED
+   ones (guest chose "No preference", awaiting the shop's assignment) may
+   land on anyone whose roster covers them. $pin lists technician ids the
+   new booking is already fixed to (a named pick — the caller must have
+   verified those technicians are free; they are occupied first).
+   Fast path: when nothing unassigned overlaps, the per-technician free
+   checks elsewhere already decide, so this returns true at once. */
+function lumina_team_feasible($pdo, $dateStr, $start, $end, $units, $excludeId = 0, $pin = []) {
+    $set = lumina_settings($pdo);
+    $techs = lumina_techs($pdo);
+    if (count($techs) < $units) return false;
+    foreach ($pin as $pt) {
+        $pw = null;
+        foreach ($techs as $t) if ((int)$t['id'] === $pt) $pw = lumina_tech_window($pdo, $t, $dateStr, $set);
+        if ($pw === null || $start < $pw[0] || $end > $pw[1]) return false;
+    }
+    $st = $pdo->prepare("SELECT start_min, end_min, units, tech_id, tech2_id FROM bookings
+        WHERE date = ? AND status IN ('pending','confirmed') AND id <> ? AND start_min < ? AND ? < end_min
+        ORDER BY start_min, id");
+    $st->execute([$dateStr, $excludeId, $end, $start]);
+    $rows = $st->fetchAll();
+    $anyUnassigned = false;
+    foreach ($rows as $b) { if (empty($b['tech_id'])) { $anyUnassigned = true; break; } }
+    if (!$anyUnassigned) return true;
+    $winOf = [];
+    foreach ($techs as $t) {
+        $w = lumina_tech_window($pdo, $t, $dateStr, $set);
+        if ($w !== null) $winOf[(int)$t['id']] = $w;
+    }
+    $cover = function ($s, $e) use ($winOf) {
+        $o = [];
+        foreach ($winOf as $tid => $w) { if ($s >= $w[0] && $e <= $w[1]) $o[] = $tid; }
+        return $o;
+    };
+    $occ = []; $jobs = [];
+    foreach ($rows as $b) {
+        $fixed = [];
+        if (!empty($b['tech_id'])) $fixed[] = (int)$b['tech_id'];
+        if (!empty($b['tech2_id'])) $fixed[] = (int)$b['tech2_id'];
+        foreach ($fixed as $ft) $occ[$ft][] = [(int)$b['start_min'], (int)$b['end_min']];
+        $need = max(1, (int)$b['units']) - count($fixed);
+        if ($need > 0) $jobs[] = ['s' => (int)$b['start_min'], 'e' => (int)$b['end_min'], 'need' => $need, 'win' => $cover((int)$b['start_min'], (int)$b['end_min'])];
+    }
+    $newWin = $cover($start, $end);
+    foreach ($pin as $pt) { if (!in_array($pt, $newWin, true)) return false; }
+    foreach ($pin as $pt) $occ[$pt][] = [$start, $end];
+    $newNeed = $units - count($pin);
+    if ($newNeed > 0) $jobs[] = ['s' => $start, 'e' => $end, 'need' => $newNeed, 'win' => $newWin];
+    usort($jobs, function ($a, $b) { return count($a['win']) - count($b['win']); });
+    return lumina_place($jobs, 0, $occ);
 }

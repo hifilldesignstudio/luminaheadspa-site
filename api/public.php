@@ -45,11 +45,8 @@ if ($action === 'availability') {
     $exclude = (int)($_GET['exclude'] ?? 0);
     $techId = (int)($_GET['techId'] ?? 0);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
-    if (lumina_mode($pdo) === 'staff') {
-        $r = lumina_available_starts_staff($pdo, $date, $minutes, $units, $techId, $exclude);
-        lumina_json(['ok' => true, 'starts' => $r['starts'], 'byStart' => $r['byStart'], 'techs' => $r['techs']]);
-    }
-    lumina_json(['ok' => true, 'starts' => lumina_available_starts($pdo, $date, $minutes, $units, $exclude)]);
+    $r = lumina_available_starts_staff($pdo, $date, $minutes, $units, $techId, $exclude);
+    lumina_json(['ok' => true, 'starts' => $r['starts'], 'byStart' => $r['byStart'], 'techs' => $r['techs']]);
 }
 
 if ($action === 'book') {
@@ -75,22 +72,22 @@ if ($action === 'book') {
     foreach ($items as $t) { $totalMin += (int)$t['minutes']; $totalPrice += (int)$t['price']; $units = max($units, (int)$t['units']); }
 
     /* lock, re-check availability, insert — so two guests cannot take the last spot at once */
-    $staffMode = lumina_mode($pdo) === 'staff';
     $asTech = null; $asTech2 = null;
     $pdo->query("SELECT GET_LOCK('lumina_book', 5)");
     try {
-        if ($staffMode) {
+        if ($techId > 0) {
+            /* Named pick: assign that technician now (strict). */
             $as = lumina_staff_assign($pdo, $date, $start, $totalMin, $units, $techId);
             if (!$as) {
                 $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
-                lumina_json(['ok' => false, 'error' => $techId > 0
-                    ? 'That time is no longer available for your chosen therapist — please pick another time, or choose “No preference”.'
-                    : 'That time was just taken — please pick another time.'], 409);
+                lumina_json(['ok' => false, 'error' => 'That time is no longer available for your chosen therapist — please pick another time, or choose “No preference”.'], 409);
             }
             $asTech = $as['tech_id']; $asTech2 = $as['tech2_id'];
         } else {
-            $starts = lumina_available_starts($pdo, $date, $totalMin, $units);
-            if (!in_array($start, $starts, true)) {
+            /* No preference: the booking waits UNASSIGNED — the shop assigns
+               a technician when they confirm. Feasibility only checks that
+               the team can cover it alongside everything else booked. */
+            if (!lumina_team_feasible($pdo, $date, $start, $start + $totalMin, $units)) {
                 $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
                 lumina_json(['ok' => false, 'error' => 'That time was just taken — please pick another time.'], 409);
             }
@@ -98,15 +95,9 @@ if ($action === 'book') {
         $ref = strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
         $token = bin2hex(random_bytes(24));
         $end = $start + $totalMin;
-        if ($staffMode) {
-            $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, tech_id, tech2_id, tech_pref, status, source, token, created_at)
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'online', ?, ?)");
-            $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $end, $totalMin, $totalPrice, $units, $asTech, $asTech2, $techId > 0 ? 1 : 0, $token, lumina_now()->format('Y-m-d H:i:s')]);
-        } else {
-            $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, status, source, token, created_at)
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'online', ?, ?)");
-            $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $end, $totalMin, $totalPrice, $units, $token, lumina_now()->format('Y-m-d H:i:s')]);
-        }
+        $ins = $pdo->prepare("INSERT INTO bookings (ref, name, phone, email, note, date, start_min, end_min, total_min, total_price, units, tech_id, tech2_id, tech_pref, status, source, token, created_at)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'online', ?, ?)");
+        $ins->execute([$ref, $name, $phone, $email, $note, $date, $start, $end, $totalMin, $totalPrice, $units, $asTech, $asTech2, $techId > 0 ? 1 : 0, $token, lumina_now()->format('Y-m-d H:i:s')]);
         $bid = (int)$pdo->lastInsertId();
         $ii = $pdo->prepare("INSERT INTO booking_items (booking_id, treatment_id, name_snapshot, minutes, price, start_min, end_min) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $t = $start;
@@ -118,7 +109,7 @@ if ($action === 'book') {
     $lines = lumina_booking_lines($pdo, $bid);
     $when = lumina_fmt_day($date);
     $manageUrl = 'https://luminaheadspa.ca/manage/?t=' . $token;
-    $withLine = $staffMode ? lumina_with_line($pdo, ['tech_id' => $asTech, 'tech2_id' => $asTech2]) : '';
+    $withLine = lumina_with_line($pdo, ['tech_id' => $asTech, 'tech2_id' => $asTech2]);
     lumina_notify($pdo, "New booking $ref — $name, $when",
         "New online booking (reference $ref)\n\nGuest: $name\nPhone: $phone\nEmail: " . ($email ?: '(not given)') .
         "\nDate: $when\n" . implode("\n", $lines) . $withLine . "\nTotal: $$totalPrice · $totalMin min" .
@@ -200,34 +191,32 @@ if ($action === 'manage_reschedule') {
     $date = (string)($in['date'] ?? '');
     $start = (int)($in['start'] ?? -1);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
-    $staffMode = lumina_mode($pdo) === 'staff';
-    /* Pre-change assignees: if the reschedule reassigns the booking, the
+    /* Pre-change assignees: if the reschedule releases the booking, the
        technician who loses it is still notified (union built at send time). */
     $preTechs = [!empty($b['tech_id']) ? (int)$b['tech_id'] : 0, !empty($b['tech2_id']) ? (int)$b['tech2_id'] : 0];
     $pdo->query("SELECT GET_LOCK('lumina_book', 5)");
     try {
         $end = $start + (int)$b['total_min'];
-        if ($staffMode) {
-            /* Named picks keep their therapist strictly; no-preference (and
-               legacy unassigned) bookings may move to any feasible tech. */
-            $named = !empty($b['tech_pref']) && !empty($b['tech_id']);
-            $as = lumina_staff_assign($pdo, $date, $start, (int)$b['total_min'], (int)$b['units'], $named ? (int)$b['tech_id'] : 0, (int)$b['id']);
+        /* Named picks keep their therapist strictly. Any other booking goes
+           back to unassigned at the new time — the shop re-assigns. */
+        $named = !empty($b['tech_pref']) && !empty($b['tech_id']);
+        if ($named) {
+            $as = lumina_staff_assign($pdo, $date, $start, (int)$b['total_min'], (int)$b['units'], (int)$b['tech_id'], (int)$b['id']);
             if (!$as) {
                 $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
-                lumina_json(['ok' => false, 'error' => $named
-                    ? 'Your therapist is not available at that time — please pick another time, or call us at 647-368-8148 and we will help.'
-                    : 'That time is not available — please pick another.'], 409);
+                lumina_json(['ok' => false, 'error' => 'Your therapist is not available at that time — please pick another time, or call us at 647-368-8148 and we will help.'], 409);
             }
             $pdo->prepare("UPDATE bookings SET date = ?, start_min = ?, end_min = ?, tech_id = ?, tech2_id = ? WHERE id = ?")
                 ->execute([$date, $start, $end, $as['tech_id'], $as['tech2_id'], $b['id']]);
             $b['tech_id'] = $as['tech_id']; $b['tech2_id'] = $as['tech2_id'];
         } else {
-            $starts = lumina_available_starts($pdo, $date, (int)$b['total_min'], (int)$b['units'], (int)$b['id']);
-            if (!in_array($start, $starts, true)) {
+            if (!lumina_team_feasible($pdo, $date, $start, $end, (int)$b['units'], (int)$b['id'])) {
                 $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
                 lumina_json(['ok' => false, 'error' => 'That time is not available — please pick another.'], 409);
             }
-            $pdo->prepare("UPDATE bookings SET date = ?, start_min = ?, end_min = ? WHERE id = ?")->execute([$date, $start, $end, $b['id']]);
+            $pdo->prepare("UPDATE bookings SET date = ?, start_min = ?, end_min = ?, tech_id = NULL, tech2_id = NULL WHERE id = ?")
+                ->execute([$date, $start, $end, $b['id']]);
+            $b['tech_id'] = null; $b['tech2_id'] = null;
         }
         /* shift each item by the same delta */
         $delta = $start - (int)$b['start_min'];

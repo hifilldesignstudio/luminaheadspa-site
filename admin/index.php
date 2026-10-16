@@ -197,7 +197,7 @@
         <div id="techList"></div>
         <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div><label>Email (receives booking notifications)</label><input id="newTechEmail" type="email"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
         <p class="msg" id="techMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them. In Per-technician booking mode (Hours &amp; Settings), guests can pick a therapist or choose "No preference", and the rosters you set with "Roster &amp; schedule" decide who can be booked when.</p>
+        <p style="color:var(--muted);font-size:13px">Guests can pick a technician when they book, or choose "No preference" — those bookings arrive unassigned, and you assign a technician when you confirm (the booking card suggests one). Simultaneous guests are automatic: one guest at a time per active technician. A technician with an email on file is notified about their own bookings — and the shop's main email always receives everything. The rosters you set with "Roster &amp; schedule" decide who can be booked when.</p>
       </div>
     </section>
 
@@ -209,8 +209,8 @@
           <div><label>Simultaneous guests</label><p style="color:var(--muted);font-size:13px;margin-top:2px">Automatic — the system counts your <b>active technicians</b> on the Technicians tab: one guest at a time per technician. To serve more guests at once, add a technician or set one active again.</p></div>
           <div><label>Book ahead (days)</label><input id="sWin" type="number" min="1" max="90"></div>
           <div><label>Online cancel cutoff (hours before)</label><input id="sCut" type="number" min="0" max="48"></div>
-          <div><label>Booking mode</label><select id="sMode"><option value="pool">Shared pool</option><option value="staff">Per-technician</option></select>
-          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Shared pool: guests book into one shared pool — how many at once follows your active technicians. Per-technician: every booking is assigned to a specific therapist using the schedules on the Technicians tab; guests may pick a therapist or choose "No preference".</p></div>
+          <div><label>How bookings are assigned</label>
+          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Every booking belongs to a technician. Guests may pick one when they book, or choose "No preference" — those arrive unassigned, and you assign a technician when you confirm (the booking card suggests one).</p></div>
           <div style="grid-column:1/-1"><label>Notification emails</label><input id="sNotify" type="text" placeholder="info@luminaheadspa.ca">
           <p style="color:var(--muted);font-size:13px;margin:6px 0 0">New-booking, cancellation, reschedule and website-message notifications are sent to these addresses. Separate several with commas — for example the owner and a staff member. Leave blank to use info@luminaheadspa.ca only.</p></div>
         </div>
@@ -272,11 +272,11 @@ function cardHTML(b){
     + (b.note? '<div class="note">Note: '+esc(b.note)+'</div>':'')
     + (b.techName? '<div>Therapist: <b>'+esc(b.techName)+(b.tech2Name? ' &amp; '+esc(b.tech2Name):'')+'</b>'+(b.tech_pref==1?' (guest pick)':'')+'</div>' : (STAFFMODE? '<div style="color:var(--muted)">Therapist: not assigned yet</div>' : ''))
     + '<div style="color:var(--muted)">Total $'+b.total_price+' · '+b.total_min+' min</div></div>';
-  if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
+  if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-tech="'+(b.tech_id||0)+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='confirmed') h += '<div><button class="act" data-id="'+b.id+'" data-st="done">Done</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='done') h += '<div><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   if(STAFFMODE && (b.status==='pending' || b.status==='confirmed')){
-    var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+(String(b.tech_id)===String(t.id)?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
+    var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+((String(b.tech_id)===String(t.id) || (!b.tech_id && b.suggest && String(b.suggest)===String(t.id)))?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
     h += '<div style="margin-top:8px"><label style="display:inline">Therapist</label> <select class="asgSel">'+aopts+'</select> <button class="act assignBtn" data-id="'+b.id+'">Assign</button></div>';
   }
   return h + '</div>';
@@ -286,6 +286,22 @@ document.body.addEventListener('click', function(e){
   if(!btn) return;
   if(btn.dataset.st==='cancelled' && !confirm('Cancel this booking? This cannot be undone — the guest will be emailed about the cancellation.')) return;
   var fromQueue = btn.closest && btn.closest('#pendingList');
+  if(btn.dataset.st==='confirmed' && btn.dataset.tech==='0'){
+    /* Unassigned booking: assign first (the card's select — pre-filled with
+       the suggested technician, or Auto-assign), then confirm. */
+    var card = btn.closest ? btn.closest('.booking') : null;
+    var sel = card? card.querySelector('.asgSel') : null;
+    var tv = sel? (parseInt(sel.value||'0',10)||0) : 0;
+    var bid2 = parseInt(btn.dataset.id,10);
+    api('booking_assign', {method:'POST', body:{id: bid2, techId: tv}}).then(function(j){
+      if(!j.ok){ alert(j.error || 'Could not assign a technician — please pick another one.'); return; }
+      api('booking_status', {method:'POST', body:{id: bid2, status: 'confirmed'}}).then(function(){
+        if(fromQueue && !$('q').value.trim()) listMode = 'upcoming';
+        loadBookings();
+      });
+    });
+    return;
+  }
   api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(function(){
     if(fromQueue && btn.dataset.st==='confirmed' && !$('q').value.trim()) listMode = 'upcoming';
     loadBookings();
@@ -540,7 +556,7 @@ $('addTreat').addEventListener('click', function(){
 function fillTechSelects(){
   if(!$('mTech')) return;
   var cur = $('mTech').value;
-  $('mTech').innerHTML = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'">'+esc(t.name)+'</option>'; }).join('');
+  $('mTech').innerHTML = '<option value="0">Assign later</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'">'+esc(t.name)+'</option>'; }).join('');
   if(cur) $('mTech').value = cur;
 }
 function syncStaffUI(){
@@ -903,15 +919,13 @@ function loadSettings(){
     timeOptions($('sOpen'), parseInt(s.open_min||600,10)); timeOptions($('sClose'), parseInt(s.close_min||1260,10));
     $('sWin').value = s.window_days||30; $('sCut').value = s.cancel_cutoff_hours||3;
     $('sNotify').value = s.notify_emails||'';
-    $('sMode').value = s.booking_mode||'pool';
-    STAFFMODE = (s.booking_mode||'pool')==='staff';
+    STAFFMODE = true;
     syncStaffUI();
     $('blockedList').innerHTML = (j.blocked||[]).map(function(b){ return '<div style="margin-bottom:6px"><b>'+esc(b.d)+'</b> '+esc(b.note||'')+' <button class="act cancel unblock" data-d="'+esc(b.d)+'">Remove</button></div>'; }).join('') || '<p style="color:var(--muted)">No blocked dates.</p>';
   });
 }
-$('sMode').addEventListener('change', function(){ STAFFMODE = $('sMode').value==='staff'; syncStaffUI(); });
 $('saveSettings').addEventListener('click', function(){
-  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value, booking_mode: $('sMode').value}})
+  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value}})
     .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); if(j.ok){ loadSettings(); loadBookings(); } });
 });
 $('bAdd').addEventListener('click', function(){
