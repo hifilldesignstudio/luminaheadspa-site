@@ -60,6 +60,10 @@
   #pCalGrid .day.p-full{background:#f6e3e0;border-color:#eec6bf}
   #pCalGrid .day.p-grey{background:#efedea;color:var(--muted)}
   #pCalGrid .day.sel{border-color:var(--brass-d);box-shadow:inset 0 0 0 2px var(--brass-d)}
+  .tchips{display:flex;flex-wrap:wrap;gap:8px}
+  .tchip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:10px 16px;font:inherit;font-size:14.5px;cursor:pointer;min-height:42px}
+  .tchip.on{background:var(--brass);border-color:var(--brass);color:#fff;font-weight:600}
+  .tchips .none{color:var(--muted);font-size:14px;padding:10px 0}
   .pcal-key{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px}
   .pcal-key.p-many{background:#e2f2e6}.pcal-key.p-some{background:#f3f7ea}.pcal-key.p-few{background:#fdf0d5}.pcal-key.p-full{background:#f6e3e0}.pcal-key.p-grey{background:#efedea}
   .cal .day.ovr{box-shadow:inset 0 0 0 2px var(--brass)}
@@ -156,7 +160,7 @@
           <div><label>Treatment 1</label><select id="mT1"></select></div>
           <div><label>Treatment 2 (optional)</label><select id="mT2"></select></div>
           <div><label>Date</label><input type="date" id="mDate"></div>
-          <div><label>Start time</label><select id="mTime"></select></div>
+          <div style="grid-column:1/-1"><label>Start time</label><div class="tchips" id="mTimes"></div></div>
           <div id="mTechWrap" class="hidden"><label>Therapist</label><select id="mTech"></select></div>
         </div>
         <p class="err" id="mErr" style="min-height:18px;font-size:13.5px;margin-top:8px"></p>
@@ -271,6 +275,7 @@ function cardHTML(b){
     + '<div style="color:var(--muted)">Total $'+b.total_price+' · '+b.total_min+' min</div></div>';
   if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='confirmed') h += '<div><button class="act" data-id="'+b.id+'" data-st="done">Done</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
+  else if(b.status==='done') h += '<div><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   if(STAFFMODE && (b.status==='pending' || b.status==='confirmed')){
     var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+(String(b.tech_id)===String(t.id)?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
     h += '<div style="margin-top:8px"><label style="display:inline">Therapist</label> <select class="asgSel">'+aopts+'</select> <button class="act assignBtn" data-id="'+b.id+'">Assign</button></div>';
@@ -280,6 +285,7 @@ function cardHTML(b){
 document.body.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('button[data-st]') : null;
   if(!btn) return;
+  if(btn.dataset.st==='cancelled' && !confirm('Cancel this booking? This cannot be undone — the guest will be emailed about the cancellation.')) return;
   var fromQueue = btn.closest && btn.closest('#pendingList');
   api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(function(){
     if(fromQueue && btn.dataset.st==='confirmed' && !$('q').value.trim()) listMode = 'upcoming';
@@ -400,12 +406,24 @@ function phoneChain(){
   var units = ids.reduce(function(a,id){ var t=TREATS.find(function(x){return x.id===id}); return Math.max(a, t? t.units:1); }, 1);
   return {mins: mins, units: units};
 }
+var pSelStart = null;
+function clearTimeSel(){
+  pSelStart = null;
+  $('mTimes').querySelectorAll('.tchip.on').forEach(function(x){ x.classList.remove('on'); });
+}
 function fillTimes(){
+  pSelStart = null;
   var ch = phoneChain();
   var date = $('mDate').value || todayStr();
   fetch(PUB+'?action=availability&date='+date+'&minutes='+ch.mins+'&units='+ch.units+(STAFFMODE? '&techId='+(($('mTech')||{}).value||0) : '')).then(function(r){return r.json()}).then(function(j){
     var starts = (j.starts||[]);
-    $('mTime').innerHTML = starts.length? starts.map(function(s){ var h=Math.floor(s/60), m=s%60, ap=h>=12?'PM':'AM', h12=h%12||12; return '<option value="'+s+'">'+h12+':'+String(m).padStart(2,'0')+' '+ap+'</option>'; }).join('') : '<option value="">No times available</option>';
+    $('mTimes').innerHTML = starts.length? starts.map(function(s){ return '<button type="button" class="tchip" data-start="'+s+'">'+fmtT(s)+'</button>'; }).join('') : '<span class="none">No times available that day — pick another day above.</span>';
+    $('mTimes').querySelectorAll('.tchip').forEach(function(c){
+      c.addEventListener('click', function(){
+        pSelStart = parseInt(c.dataset.start,10);
+        $('mTimes').querySelectorAll('.tchip').forEach(function(x){ x.classList.toggle('on', x===c); });
+      });
+    });
   });
 }
 /* Phone Booking availability calendar — a month-at-a-glance guide to how
@@ -476,15 +494,22 @@ document.addEventListener('change', function(e){
   }
   var cur = pCalCache[pcalKey()]; if(cur) renderPhoneCal(cur);
 });
+function scrollToMsg(el){
+  if(el && el.scrollIntoView){ try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ try{ el.scrollIntoView(); }catch(e2){} } }
+}
 $('mAdd').addEventListener('click', function(){
+  $('mErr').textContent = '';
+  $('mMsg').textContent = '';
+  if(!$('mName').value.trim()){ $('mErr').textContent = "Please add the guest's name."; scrollToMsg($('mErr')); return; }
+  if(!$('mPhone').value.trim()){ $('mErr').textContent = 'Please add a phone number.'; scrollToMsg($('mErr')); return; }
+  if(pSelStart===null){ $('mErr').textContent = 'Please pick a start time.'; scrollToMsg($('mErr')); return; }
   var items = [$('mT1').value, $('mT2').value].filter(Boolean).map(Number);
   var body = {name: $('mName').value, phone: $('mPhone').value, email: $('mEmail').value, note: $('mNote').value,
-              date: $('mDate').value, start: parseInt($('mTime').value,10), items: items, techId: parseInt(($('mTech')||{}).value||'0',10)||0};
-  $('mErr').textContent = '';
+              date: $('mDate').value, start: pSelStart, items: items, techId: parseInt(($('mTech')||{}).value||'0',10)||0};
   api('phone_booking', {method:'POST', body: body}).then(function(j){
-    if(j.ok){ $('mMsg').textContent = '✓ Added — reference '+j.ref; pCalCache = {}; loadPhoneCal(); loadBookings(); }
-    else if(j.full){ if(confirm(j.error)){ body.force = true; api('phone_booking', {method:'POST', body: body}).then(function(j2){ if(j2.ok){ $('mMsg').textContent='✓ Added (overbooked) — reference '+j2.ref; pCalCache = {}; loadPhoneCal(); loadBookings(); } }); } }
-    else $('mErr').textContent = j.error || 'Could not add the booking.';
+    if(j.ok){ $('mMsg').textContent = '✓ Added — reference '+j.ref; clearTimeSel(); pCalCache = {}; loadPhoneCal(); loadBookings(); scrollToMsg($('mMsg')); }
+    else if(j.full){ if(confirm(j.error)){ body.force = true; api('phone_booking', {method:'POST', body: body}).then(function(j2){ if(j2.ok){ $('mMsg').textContent='✓ Added (overbooked) — reference '+j2.ref; clearTimeSel(); pCalCache = {}; loadPhoneCal(); loadBookings(); scrollToMsg($('mMsg')); } else { $('mErr').textContent = j2.error || 'Could not add the booking.'; scrollToMsg($('mErr')); } }); } }
+    else { $('mErr').textContent = j.error || 'Could not add the booking.'; scrollToMsg($('mErr')); }
   });
 });
 
