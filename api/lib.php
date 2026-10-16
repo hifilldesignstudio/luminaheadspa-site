@@ -113,6 +113,25 @@ function lumina_mail($to, $subject, $body, $replyTo = null) {
     return @mail($to, $subject, $body, $headers);
 }
 
+/* Shop notifications: every address in the admin 'notify_emails' setting
+   (comma-separated), falling back to the configured shop email. */
+function lumina_notify($pdo, $subject, $body, $replyTo = null) {
+    $cfg = lumina_config();
+    $list = [];
+    if ($pdo) {
+        $raw = '';
+        try { $set = lumina_settings($pdo); $raw = trim((string)($set['notify_emails'] ?? '')); } catch (Exception $e) { $raw = ''; }
+        if ($raw !== '') {
+            foreach (preg_split('/[,;]+/', $raw) as $a) {
+                $a = trim($a);
+                if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
+            }
+        }
+    }
+    if (!$list) $list = [ ($cfg && !empty($cfg['shop_email'])) ? $cfg['shop_email'] : 'info@luminaheadspa.ca' ];
+    foreach (array_unique($list) as $to) lumina_mail($to, $subject, $body, $replyTo);
+}
+
 function lumina_booking_lines($pdo, $bookingId) {
     $st = $pdo->prepare("SELECT name_snapshot, start_min, end_min FROM booking_items WHERE booking_id = ? ORDER BY start_min");
     $st->execute([$bookingId]);

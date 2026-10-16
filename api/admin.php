@@ -150,6 +150,7 @@ if ($action === 'settings_save') {
     $allowed = ['open_min', 'close_min', 'slot_step', 'window_days', 'capacity', 'cancel_cutoff_hours'];
     $st = $pdo->prepare("INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)");
     foreach ($allowed as $k) if (isset($in[$k])) $st->execute([$k, (string)(int)$in[$k]]);
+    if (isset($in['notify_emails'])) $st->execute(['notify_emails', trim((string)$in['notify_emails'])]);
     lumina_json(['ok' => true]);
 }
 if ($action === 'blocked_add') {

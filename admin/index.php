@@ -144,6 +144,8 @@
           <div><label>Simultaneous guests (capacity)</label><input id="sCap" type="number" min="1" max="10"></div>
           <div><label>Book ahead (days)</label><input id="sWin" type="number" min="1" max="90"></div>
           <div><label>Online cancel cutoff (hours before)</label><input id="sCut" type="number" min="0" max="48"></div>
+          <div style="grid-column:1/-1"><label>Notification emails</label><input id="sNotify" type="text" placeholder="info@luminaheadspa.ca">
+          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">New-booking, cancellation, reschedule and website-message notifications are sent to these addresses. Separate several with commas — for example the owner and a staff member. Leave blank to use info@luminaheadspa.ca only.</p></div>
         </div>
         <button class="btn" id="saveSettings" style="margin-top:14px">Save settings</button>
         <p class="msg" id="setMsg"></p>
@@ -335,11 +337,12 @@ function loadSettings(){
     var s = j.settings||{};
     timeOptions($('sOpen'), parseInt(s.open_min||600,10)); timeOptions($('sClose'), parseInt(s.close_min||1260,10));
     $('sCap').value = s.capacity||2; $('sWin').value = s.window_days||30; $('sCut').value = s.cancel_cutoff_hours||3;
+    $('sNotify').value = s.notify_emails||'';
     $('blockedList').innerHTML = (j.blocked||[]).map(function(b){ return '<div style="margin-bottom:6px"><b>'+esc(b.d)+'</b> '+esc(b.note||'')+' <button class="act cancel unblock" data-d="'+esc(b.d)+'">Remove</button></div>'; }).join('') || '<p style="color:var(--muted)">No blocked dates.</p>';
   });
 }
 $('saveSettings').addEventListener('click', function(){
-  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value}})
+  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value}})
     .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); });
 });
 $('bAdd').addEventListener('click', function(){

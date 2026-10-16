@@ -86,8 +86,7 @@ if ($action === 'book') {
     $lines = lumina_booking_lines($pdo, $bid);
     $when = lumina_fmt_day($date);
     $manageUrl = 'https://luminaheadspa.ca/manage/?t=' . $token;
-    $shop = $cfg['shop_email'] ?? 'info@luminaheadspa.ca';
-    lumina_mail($shop, "New booking $ref — $name, $when",
+    lumina_notify($pdo, "New booking $ref — $name, $when",
         "New online booking (reference $ref)\n\nGuest: $name\nPhone: $phone\nEmail: " . ($email ?: '(not given)') .
         "\nDate: $when\n" . implode("\n", $lines) . "\nTotal: $$totalPrice · $totalMin min" .
         ($note !== '' ? "\nGuest note: $note" : '') .
@@ -118,8 +117,7 @@ if ($action === 'contact') {
         $pdo->prepare("INSERT INTO messages (name, email, phone, message, created_at) VALUES (?, ?, ?, ?, ?)")
             ->execute([$name, $email, $phone, $msg, lumina_now()->format('Y-m-d H:i:s')]);
     } catch (Exception $e) { /* the email below still goes out */ }
-    $shop = $cfg['shop_email'] ?? 'info@luminaheadspa.ca';
-    lumina_mail($shop, "Website message from $name",
+    lumina_notify($pdo, "Website message from $name",
         "New message from the Lumina website contact form:\n\nName: $name\nEmail: $email\nPhone: " . ($phone ?: '(not given)') . "\n\n$msg\n\n— Just reply to this email to answer them.", $email);
     lumina_json(['ok' => true]);
 }
@@ -154,8 +152,7 @@ if ($action === 'manage_cancel') {
         lumina_json(['ok' => false, 'error' => 'It is too close to your appointment to cancel online — please call us at 647-368-8148 and we will help.'], 422);
     }
     $pdo->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?")->execute([$b['id']]);
-    $shop = $cfg['shop_email'] ?? 'info@luminaheadspa.ca';
-    lumina_mail($shop, "Booking cancelled — {$b['ref']}",
+    lumina_notify($pdo, "Booking cancelled — {$b['ref']}",
         "The guest cancelled booking {$b['ref']}.\n\nGuest: {$b['name']} ({$b['phone']})\nWas: " . lumina_fmt_day($b['date']) . ', ' . lumina_fmt_time((int)$b['start_min']) . "\nThe time slot is now free again.");
     lumina_json(['ok' => true, 'status' => 'cancelled']);
 }
@@ -181,9 +178,8 @@ if ($action === 'manage_reschedule') {
     } finally {
         $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
     }
-    $shop = $cfg['shop_email'] ?? 'info@luminaheadspa.ca';
     $lines = lumina_booking_lines($pdo, (int)$b['id']);
-    lumina_mail($shop, "Booking rescheduled — {$b['ref']}",
+    lumina_notify($pdo, "Booking rescheduled — {$b['ref']}",
         "Booking {$b['ref']} was moved by the guest.\n\nGuest: {$b['name']} ({$b['phone']})\nNew time: " . lumina_fmt_day($date) . "\n" . implode("\n", $lines));
     if ($b['email'] !== '') {
         lumina_mail($b['email'], "Your Lumina booking was moved — {$b['ref']}",
