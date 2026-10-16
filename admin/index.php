@@ -35,6 +35,7 @@
   .act.confirm{border-color:var(--green);color:var(--green)} .act.cancel{border-color:var(--red);color:var(--red)}
   h3.sec{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
   input,select,textarea{width:100%;padding:10px 12px;border:1px solid #d8cdb8;border-radius:9px;font:inherit;font-size:15px;background:#fff}
+  input[type="radio"],input[type="checkbox"]{width:auto;padding:0;border:none;background:none}
   label{font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px;font-weight:600}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:640px){.grid{grid-template-columns:1fr}.booking{flex-wrap:wrap}}
@@ -99,7 +100,7 @@
   .tmodal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
   .tmodal-head b{font-size:17px}
   #printSheet{display:none}
-  @media print{ #login,#app{display:none!important} #printSheet{display:block!important;font-family:Georgia,serif;color:#000} }
+  @media print{ #login,#app,#techModal{display:none!important} #printSheet{display:block!important;font-family:Georgia,serif;color:#000} }
 </style>
 </head>
 <body>
@@ -797,8 +798,8 @@ function renderRosterEditor(id){
   var ev = (entry && entry.end != null)? entry.end : 1260;
   var notes = {shift: 'Hours set by hand for this day.', off_override: 'Day off set by hand.', weekly: 'Following the usual weekly hours.', weekly_off: 'Usual weekly day off.', shop: 'Shop hours — no weekly hours saved.'};
   box.innerHTML = '<div class="rday-ed"><div style="font-weight:600;margin-bottom:8px">'+label+'</div>'
-    + '<div style="margin-bottom:8px"><label style="display:inline;margin-right:14px"><input type="radio" name="rstate-'+id+'" value="work"'+(isWork?' checked':'')+'> Works</label>'
-    + '<label style="display:inline"><input type="radio" name="rstate-'+id+'" value="off"'+(!isWork?' checked':'')+'> Day off</label>'
+    + '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:8px"><label style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="radio" name="rstate-'+id+'" value="work"'+(isWork?' checked':'')+'> Works</label>'
+    + '<label style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="radio" name="rstate-'+id+'" value="off"'+(!isWork?' checked':'')+'> Day off</label>'
     + (entry && notes[entry.source]? ' <span style="color:var(--muted);font-size:12.5px">'+notes[entry.source]+'</span>' : '') + '</div>'
     + '<div class="row" style="margin-bottom:10px"><div><label>Starts</label><select id="rStart-'+id+'"></select></div><div><label>Ends</label><select id="rEnd-'+id+'"></select></div></div>'
     + '<button class="act dSave" data-id="'+id+'">Save day</button>'
