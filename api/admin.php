@@ -144,6 +144,25 @@ if ($action === 'booking_status') {
     if (!in_array($status, ['confirmed', 'cancelled', 'done', 'pending'], true)) lumina_json(['ok' => false, 'error' => 'Bad status'], 400);
     $st = $pdo->prepare("SELECT * FROM bookings WHERE id = ?"); $st->execute([$id]); $b = $st->fetch();
     if (!$b) lumina_json(['ok' => false, 'error' => 'Not found'], 404);
+    if ($status === 'confirmed' && $b['status'] === 'cancelled') {
+        /* Restoring a cancelled booking: only if the time still fits the
+           team — it may have been taken since the cancellation. */
+        lumina_ensure_modelb($pdo);
+        $pdo->query("SELECT GET_LOCK('lumina_book', 5)");
+        try {
+            if (!empty($b['tech_id'])) {
+                $as = lumina_staff_assign($pdo, $b['date'], (int)$b['start_min'], (int)$b['total_min'], max(1, (int)$b['units']), (int)$b['tech_id'], $id);
+                if (!$as) lumina_json(['ok' => false, 'error' => 'That time has been taken since the cancellation, so this booking cannot be restored as-is.'], 409);
+                $pdo->prepare("UPDATE bookings SET tech_id = ?, tech2_id = ? WHERE id = ?")->execute([$as['tech_id'], $as['tech2_id'], $id]);
+            } else {
+                if (!lumina_team_feasible($pdo, $b['date'], (int)$b['start_min'], (int)$b['start_min'] + (int)$b['total_min'], max(1, (int)$b['units']), $id)) {
+                    lumina_json(['ok' => false, 'error' => 'That time has been taken since the cancellation, so this booking cannot be restored as-is.'], 409);
+                }
+            }
+        } finally {
+            $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
+        }
+    }
     $pdo->prepare("UPDATE bookings SET status = ? WHERE id = ?")->execute([$status, $id]);
     if ($status === 'cancelled' && $b['source'] === 'online' && $b['email'] !== '') {
         lumina_mail($b['email'], "Your Lumina booking {$b['ref']} was cancelled",
@@ -160,6 +179,56 @@ if ($action === 'booking_status') {
             "\n\nNeed to change or cancel? Use your private link (no login needed):\n$manageUrl" .
             "\n\nLumina Head Spa & Beauty · 9505 Keele Street, Unit 1A, Maple · 647-368-8148");
     }
+    lumina_json(['ok' => true]);
+}
+
+if ($action === 'tech_day_bookings') {
+    /* One technician's bookings for one day — the admin can print the list
+       or email it to the technician. Cancelled bookings are excluded. */
+    lumina_ensure_modelb($pdo);
+    $techId = (int)($_GET['techId'] ?? 0);
+    $date = (string)($_GET['date'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
+    $st = $pdo->prepare("SELECT * FROM technicians WHERE id = ?"); $st->execute([$techId]); $t = $st->fetch();
+    if (!$t) lumina_json(['ok' => false, 'error' => 'Technician not found'], 404);
+    $set = lumina_settings($pdo);
+    $w = lumina_tech_window($pdo, $t, $date, $set);
+    $q = $pdo->prepare("SELECT * FROM bookings WHERE date = ? AND status IN ('pending','confirmed','done') AND (tech_id = ? OR tech2_id = ?) ORDER BY start_min, id");
+    $q->execute([$date, $techId, $techId]);
+    $rows = [];
+    foreach ($q->fetchAll() as $b) $rows[] = booking_full($pdo, $b);
+    lumina_json(['ok' => true, 'tech' => ['id' => (int)$t['id'], 'name' => $t['name'], 'email' => $t['email'] ?? ''], 'window' => $w, 'dayLabel' => lumina_fmt_day($date), 'bookings' => $rows]);
+}
+
+if ($action === 'tech_day_email') {
+    lumina_ensure_modelb($pdo);
+    $in = body_json();
+    $techId = (int)($in['techId'] ?? 0);
+    $date = (string)($in['date'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
+    $st = $pdo->prepare("SELECT * FROM technicians WHERE id = ?"); $st->execute([$techId]); $t = $st->fetch();
+    if (!$t) lumina_json(['ok' => false, 'error' => 'Technician not found'], 404);
+    if (empty($t['email'])) lumina_json(['ok' => false, 'error' => 'No email on file for this technician — add one above first.'], 422);
+    $set = lumina_settings($pdo);
+    $w = lumina_tech_window($pdo, $t, $date, $set);
+    $q = $pdo->prepare("SELECT * FROM bookings WHERE date = ? AND status IN ('pending','confirmed','done') AND (tech_id = ? OR tech2_id = ?) ORDER BY start_min, id");
+    $q->execute([$date, $techId, $techId]);
+    $day = lumina_fmt_day($date);
+    $body = "Hi {$t['name']},\n\nYour Lumina bookings for $day\nWorking hours: " . ($w ? lumina_fmt_time($w[0]) . ' – ' . lumina_fmt_time($w[1]) : 'Day off') . "\n";
+    $rows = $q->fetchAll();
+    if (!$rows) {
+        $body .= "\nNo bookings this day.\n";
+    } else {
+        foreach ($rows as $b) {
+            $body .= "\n" . lumina_fmt_time((int)$b['start_min']) . ' – ' . lumina_fmt_time((int)$b['start_min'] + (int)$b['total_min']) . " · {$b['name']} · {$b['phone']}";
+            if ($b['status'] !== 'confirmed') $body .= $b['status'] === 'pending' ? ' · WAITING FOR CONFIRMATION' : ' · done';
+            $body .= "\n";
+            foreach (lumina_booking_lines($pdo, (int)$b['id']) as $ln) $body .= "  $ln\n";
+            if (!empty($b['note'])) $body .= "  Note: {$b['note']}\n";
+        }
+    }
+    $body .= "\nLumina Head Spa & Beauty · 9505 Keele Street, Unit 1A, Maple · 647-368-8148\nSent from the Lumina booking admin.";
+    lumina_mail($t['email'], "Your Lumina schedule — $day", $body);
     lumina_json(['ok' => true]);
 }
 

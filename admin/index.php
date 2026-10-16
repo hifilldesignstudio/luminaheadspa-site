@@ -94,6 +94,8 @@
   #toasts{position:fixed;top:14px;right:14px;z-index:999;display:flex;flex-direction:column;gap:8px}
   .toast{background:#2b2118;color:#fdf8ef;padding:12px 16px;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.35);font-size:14px;line-height:1.45;cursor:pointer;max-width:330px;transition:opacity .4s}
   .toast.out{opacity:0}
+  #printSheet{display:none}
+  @media print{ #login,#app{display:none!important} #printSheet{display:block!important;font-family:Georgia,serif;color:#000} }
 </style>
 </head>
 <body>
@@ -226,6 +228,7 @@
   </div>
 </div>
 
+<div id="printSheet"></div>
 <script>
 var API = '../api/admin.php', PUB = '../api/public.php';
 function $(id){ return document.getElementById(id); }
@@ -275,6 +278,7 @@ function cardHTML(b){
   if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-tech="'+(b.tech_id||0)+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='confirmed') h += '<div><button class="act" data-id="'+b.id+'" data-st="done">Done</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='done') h += '<div><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
+  else if(b.status==='cancelled') h += '<div><button class="act" data-id="'+b.id+'" data-st="confirmed" data-restore="1">Restore</button></div>';
   if(STAFFMODE && (b.status==='pending' || b.status==='confirmed' || b.status==='done')){
     var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+((String(b.tech_id)===String(t.id) || (!b.tech_id && b.suggest && String(b.suggest)===String(t.id)))?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
     h += '<div style="margin-top:8px"><label style="display:inline">Therapist</label> <select class="asgSel">'+aopts+'</select> <button class="act assignBtn" data-id="'+b.id+'">Assign</button></div>';
@@ -302,7 +306,8 @@ document.body.addEventListener('click', function(e){
     });
     return;
   }
-  api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(function(){
+  api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(function(j){
+    if(j && j.ok===false && btn.dataset.restore) alert(j.error || 'This booking could not be restored.');
     if(fromQueue && btn.dataset.st==='confirmed' && !$('q').value.trim()) listMode = 'upcoming';
     loadBookings();
   });
@@ -571,13 +576,68 @@ function loadTechs(){
         + '<div><input type="email" placeholder="Email for notifications" value="'+esc(t.email||'')+'" data-techemail="'+t.id+'"></div>'
         + '<div style="flex:0"><label style="display:inline"><input type="checkbox" data-techon="'+t.id+'" '+(t.active==1?'checked':'')+'> Active</label></div>'
         + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div>'
-        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Roster &amp; schedule</button></div></div>'
-        + '<div id="sched-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>';
+        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Roster &amp; schedule</button></div>'
+        + '<div style="flex:0"><button class="act dayToggle" data-id="'+t.id+'">Day bookings</button></div></div>'
+        + '<div id="sched-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>'
+        + '<div id="daybk-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>';
     }).join('') || '<p style="color:var(--muted)">No technicians yet.</p>';
     fillTechSelects();
     loadTeamMonth();
   });
 }
+/* ---------- per-technician day bookings (view / print / email) ---------- */
+var DAYBK = {};
+function buildDayPanel(id){
+  var el = $('daybk-'+id); if(!el) return;
+  el.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Day bookings — pick any day</div>'
+    + '<div class="row" style="align-items:center;margin-bottom:8px"><div style="flex:0"><button type="button" class="act dayPrev" data-id="'+id+'">‹ Prev day</button></div>'
+    + '<div style="flex:0"><input type="date" class="dayDate" data-id="'+id+'" value="'+todayStr()+'"></div>'
+    + '<div style="flex:0"><button type="button" class="act dayNext" data-id="'+id+'">Next day ›</button></div>'
+    + '<div style="flex:0"><button type="button" class="act dayPrint" data-id="'+id+'">Print</button></div>'
+    + '<div style="flex:0"><button type="button" class="act dayEmail" data-id="'+id+'">Email to technician</button></div>'
+    + '<span class="msg" id="dayMsg-'+id+'"></span></div>'
+    + '<div id="dayList-'+id+'">Loading…</div>';
+  loadTechDay(id);
+}
+function dayDateOf(id){ var i = document.querySelector('.dayDate[data-id="'+id+'"]'); return i? i.value : todayStr(); }
+function shiftTechDay(id, n){
+  var inp = document.querySelector('.dayDate[data-id="'+id+'"]'); if(!inp || !inp.value) return;
+  var p = inp.value.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2]); d.setDate(d.getDate()+n);
+  inp.value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  loadTechDay(id);
+}
+function loadTechDay(id){
+  var list = $('dayList-'+id); if(!list) return;
+  api('tech_day_bookings', {qs:'&techId='+id+'&date='+dayDateOf(id)}).then(function(j){
+    if(!j || !j.ok){ list.textContent = (j && j.error) || 'Could not load.'; return; }
+    DAYBK[id] = j;
+    var wTxt = j.window? ('Working ' + fmtT(j.window[0]) + ' – ' + fmtT(j.window[1])) : 'Day off';
+    if(!j.bookings.length){ list.innerHTML = '<div style="color:var(--muted)">'+esc(j.dayLabel)+' · '+esc(wTxt)+' · No bookings this day.</div>'; return; }
+    list.innerHTML = '<div style="color:var(--muted);margin-bottom:6px">'+esc(j.dayLabel)+' · '+esc(wTxt)+'</div>' + j.bookings.map(function(b){
+      return '<div class="card booking" style="margin-bottom:8px"><div class="bk-head"><b>'+esc(b.startLabel)+' – '+esc(b.endLabel)+'</b>'+(b.status!=='confirmed'? '<span class="badge">'+esc(b.status)+'</span>':'')+'</div>'
+        + '<div>'+esc(b.name)+' · '+esc(b.phone)+'</div>'
+        + '<div>'+b.items.map(function(i){ return esc(i.name); }).join(' · ')+'</div>'
+        + (b.note? '<div>Note: '+esc(b.note)+'</div>' : '')
+        + '</div>';
+    }).join('');
+  });
+}
+function printTechDay(id){
+  var j = DAYBK[id]; if(!j) return;
+  var rows = j.bookings.map(function(b){
+    return '<tr><td style="white-space:nowrap">'+esc(b.startLabel)+' – '+esc(b.endLabel)+'</td><td>'+esc(b.name)+'<br>'+esc(b.phone)+'</td><td>'+b.items.map(function(i){ return esc(i.name); }).join('<br>')+(b.note? '<br>Note: '+esc(b.note) : '')+(b.status!=='confirmed'? '<br>('+esc(b.status)+')' : '')+'</td></tr>';
+  }).join('');
+  $('printSheet').innerHTML = '<h1 style="font-size:20px;margin:0 0 2px">Lumina Head Spa &amp; Beauty</h1>'
+    + '<div style="font-size:15px;margin-bottom:4px">'+esc(j.tech.name)+' — '+esc(j.dayLabel)+'</div>'
+    + '<div style="color:#555;margin-bottom:12px">'+(j.window? ('Working ' + fmtT(j.window[0]) + ' – ' + fmtT(j.window[1])) : 'Day off')+'</div>'
+    + (rows? '<table style="border-collapse:collapse;width:100%" border="1" cellpadding="6">'+rows+'</table>' : '<p>No bookings this day.</p>')
+    + '<p style="color:#555;margin-top:12px">Lumina Head Spa &amp; Beauty · 9505 Keele Street, Unit 1A, Maple · 647-368-8148</p>';
+  window.print();
+}
+document.addEventListener('change', function(e){
+  if(e.target.classList && e.target.classList.contains('dayDate')) loadTechDay(e.target.dataset.id);
+});
+
 var DAYNAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 function techSchedMap(t){
   var map = null; try{ map = t.sched? JSON.parse(t.sched) : null; }catch(e){}
@@ -843,6 +903,21 @@ $('techList').addEventListener('click', function(e){
   if(cl.contains('schedToggle')){
     var panel = $('sched-'+e.target.dataset.id);
     if(panel){ panel.classList.toggle('hidden'); if(!panel.dataset.built){ panel.dataset.built='1'; buildSchedPanel(e.target.dataset.id); } }
+    return;
+  }
+  if(cl.contains('dayToggle')){
+    var dpanel = $('daybk-'+e.target.dataset.id);
+    if(dpanel){ dpanel.classList.toggle('hidden'); if(!dpanel.dataset.built){ dpanel.dataset.built='1'; buildDayPanel(e.target.dataset.id); } }
+    return;
+  }
+  if(cl.contains('dayPrev')){ shiftTechDay(e.target.dataset.id, -1); return; }
+  if(cl.contains('dayNext')){ shiftTechDay(e.target.dataset.id, 1); return; }
+  if(cl.contains('dayPrint')){ printTechDay(e.target.dataset.id); return; }
+  if(cl.contains('dayEmail')){
+    var eid2 = e.target.dataset.id, emsg2 = $('dayMsg-'+eid2);
+    api('tech_day_email', {method:'POST', body:{techId: parseInt(eid2,10), date: dayDateOf(eid2)}}).then(function(j){
+      if(emsg2) emsg2.textContent = (j && j.ok)? '✓ Emailed to the technician' : ((j && j.error) || 'Could not send');
+    });
     return;
   }
   if(cl.contains('saveSched')){ saveSched(e.target.dataset.id); return; }
