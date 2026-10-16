@@ -115,6 +115,7 @@
           <div><label>Treatment 2 (optional)</label><select id="mT2"></select></div>
           <div><label>Date</label><input type="date" id="mDate"></div>
           <div><label>Start time</label><select id="mTime"></select></div>
+          <div id="mTechWrap" class="hidden"><label>Therapist</label><select id="mTech"></select></div>
         </div>
         <p class="err" id="mErr" style="min-height:18px;font-size:13.5px;margin-top:8px"></p>
         <button class="btn" id="mAdd">Add Booking (confirmed)</button>
@@ -136,7 +137,7 @@
         <div id="techList"></div>
         <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div><label>Email (receives booking notifications)</label><input id="newTechEmail" type="email"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
         <p class="msg" id="techMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them.</p>
+        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them. In Per-technician booking mode (Hours &amp; Settings), guests can pick a therapist or choose "No preference", and the schedules you set with "Schedule &amp; days off" decide who can be booked when.</p>
       </div>
     </section>
 
@@ -148,6 +149,8 @@
           <div><label>Simultaneous guests (capacity)</label><input id="sCap" type="number" min="1" max="10"></div>
           <div><label>Book ahead (days)</label><input id="sWin" type="number" min="1" max="90"></div>
           <div><label>Online cancel cutoff (hours before)</label><input id="sCut" type="number" min="0" max="48"></div>
+          <div><label>Booking mode</label><select id="sMode"><option value="pool">Shared pool</option><option value="staff">Per-technician</option></select>
+          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Shared pool: guests book against one shared capacity. Per-technician: every booking is assigned to a specific therapist using the schedules on the Technicians tab; guests may pick a therapist or choose "No preference".</p></div>
           <div style="grid-column:1/-1"><label>Notification emails</label><input id="sNotify" type="text" placeholder="info@luminaheadspa.ca">
           <p style="color:var(--muted);font-size:13px;margin:6px 0 0">New-booking, cancellation, reschedule and website-message notifications are sent to these addresses. Separate several with commas — for example the owner and a staff member. Leave blank to use info@luminaheadspa.ca only.</p></div>
         </div>
@@ -207,9 +210,14 @@ function cardHTML(b){
     + ' <small style="color:var(--muted)">Ref '+esc(b.ref)+'</small><div>'+items+'</div>'
     + '<div>Phone: '+esc(b.phone)+(b.email?' · '+esc(b.email):'')+'</div>'
     + (b.note? '<div class="note">Note: '+esc(b.note)+'</div>':'')
+    + (b.techName? '<div>Therapist: <b>'+esc(b.techName)+(b.tech2Name? ' &amp; '+esc(b.tech2Name):'')+'</b>'+(b.tech_pref==1?' (guest pick)':'')+'</div>' : (STAFFMODE? '<div style="color:var(--muted)">Therapist: not assigned yet</div>' : ''))
     + '<div style="color:var(--muted)">Total $'+b.total_price+' · '+b.total_min+' min</div></div>';
   if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='confirmed') h += '<div><button class="act" data-id="'+b.id+'" data-st="done">Done</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
+  if(STAFFMODE && (b.status==='pending' || b.status==='confirmed')){
+    var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+(String(b.tech_id)===String(t.id)?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
+    h += '<div style="margin-top:8px"><label style="display:inline">Therapist</label> <select class="asgSel">'+aopts+'</select> <button class="act assignBtn" data-id="'+b.id+'">Assign</button></div>';
+  }
   return h + '</div>';
 }
 document.body.addEventListener('click', function(e){
@@ -240,6 +248,16 @@ function loadBookings(){
   });
   loadCal();
 }
+document.body.addEventListener('click', function(e){
+  var btn = e.target.closest ? e.target.closest('button.assignBtn') : null;
+  if(!btn) return;
+  var card = btn.closest('.card');
+  var sel = card? card.querySelector('select.asgSel') : null;
+  if(!sel) return;
+  api('booking_assign', {method:'POST', body:{id: parseInt(btn.dataset.id,10), techId: parseInt(sel.value,10)||0}}).then(function(j){
+    if(j.ok) loadBookings(); else alert(j.error||'Could not assign that therapist.');
+  });
+});
 $('q').addEventListener('input', loadBookings);
 $('dayPick').addEventListener('change', function(){ viewDay = this.value || todayStr(); listMode='day'; loadBookings(); });
 $('todayBtn').addEventListener('click', function(){ viewDay = todayStr(); $('dayPick').value = viewDay; $('q').value=''; loadBookings(); });
@@ -268,6 +286,7 @@ $('calPrev').addEventListener('click', function(){ calM--; if(calM<0){calM=11;ca
 $('calNext').addEventListener('click', function(){ calM++; if(calM>11){calM=0;calY++;} loadCal(); });
 
 /* ---------- phone booking ---------- */
+var STAFFMODE = false, TECHLIST = [];
 var TREATS = [];
 function fillTreatSelects(){
   var opts = TREATS.map(function(t){ return '<option value="'+t.id+'">'+esc(t.name)+' · '+t.minutes+' min · $'+t.price+'</option>'; }).join('');
@@ -279,16 +298,16 @@ function fillTimes(){
   var mins = ids.reduce(function(a,id){ var t=TREATS.find(function(x){return x.id===id}); return a+(t? t.minutes:0); }, 0) || 60;
   var units = ids.reduce(function(a,id){ var t=TREATS.find(function(x){return x.id===id}); return Math.max(a, t? t.units:1); }, 1);
   var date = $('mDate').value || todayStr();
-  fetch(PUB+'?action=availability&date='+date+'&minutes='+mins+'&units='+units).then(function(r){return r.json()}).then(function(j){
+  fetch(PUB+'?action=availability&date='+date+'&minutes='+mins+'&units='+units+(STAFFMODE? '&techId='+(($('mTech')||{}).value||0) : '')).then(function(r){return r.json()}).then(function(j){
     var starts = (j.starts||[]);
     $('mTime').innerHTML = starts.length? starts.map(function(s){ var h=Math.floor(s/60), m=s%60, ap=h>=12?'PM':'AM', h12=h%12||12; return '<option value="'+s+'">'+h12+':'+String(m).padStart(2,'0')+' '+ap+'</option>'; }).join('') : '<option value="">No times available</option>';
   });
 }
-['mT1','mT2','mDate'].forEach(function(id){ document.addEventListener('change', function(e){ if(e.target.id===id) fillTimes(); }); });
+['mT1','mT2','mDate','mTech'].forEach(function(id){ document.addEventListener('change', function(e){ if(e.target.id===id) fillTimes(); }); });
 $('mAdd').addEventListener('click', function(){
   var items = [$('mT1').value, $('mT2').value].filter(Boolean).map(Number);
   var body = {name: $('mName').value, phone: $('mPhone').value, email: $('mEmail').value, note: $('mNote').value,
-              date: $('mDate').value, start: parseInt($('mTime').value,10), items: items};
+              date: $('mDate').value, start: parseInt($('mTime').value,10), items: items, techId: parseInt(($('mTech')||{}).value||'0',10)||0};
   $('mErr').textContent = '';
   api('phone_booking', {method:'POST', body: body}).then(function(j){
     if(j.ok){ $('mMsg').textContent = '✓ Added — reference '+j.ref; loadBookings(); }
@@ -322,14 +341,76 @@ $('addTreat').addEventListener('click', function(){
 });
 
 /* ---------- technicians ---------- */
+function fillTechSelects(){
+  if(!$('mTech')) return;
+  var cur = $('mTech').value;
+  $('mTech').innerHTML = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'">'+esc(t.name)+'</option>'; }).join('');
+  if(cur) $('mTech').value = cur;
+}
+function syncStaffUI(){
+  var w = $('mTechWrap'); if(w) w.classList.toggle('hidden', !STAFFMODE);
+  fillTechSelects();
+}
 function loadTechs(){
   api('technicians').then(function(j){
-    $('techList').innerHTML = (j.technicians||[]).map(function(t){
+    TECHLIST = j.technicians||[];
+    $('techList').innerHTML = TECHLIST.map(function(t){
       return '<div class="row" style="margin-bottom:8px"><div><input value="'+esc(t.name)+'" data-tech="'+t.id+'"></div>'
         + '<div><input type="email" placeholder="Email for notifications" value="'+esc(t.email||'')+'" data-techemail="'+t.id+'"></div>'
         + '<div style="flex:0"><label style="display:inline"><input type="checkbox" data-techon="'+t.id+'" '+(t.active==1?'checked':'')+'> Active</label></div>'
-        + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div></div>';
+        + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div>'
+        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Schedule &amp; days off</button></div></div>'
+        + '<div id="sched-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>';
     }).join('') || '<p style="color:var(--muted)">No technicians yet.</p>';
+    fillTechSelects();
+  });
+}
+var DAYNAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function techSchedMap(t){
+  var map = null; try{ map = t.sched? JSON.parse(t.sched) : null; }catch(e){}
+  return map;
+}
+function buildSchedPanel(id){
+  var t = TECHLIST.find(function(x){ return String(x.id)===String(id); });
+  var panel = $('sched-'+id); if(!panel || !t) return;
+  var map = techSchedMap(t);
+  var h = '<div style="font-weight:600;margin-bottom:6px">Weekly schedule</div>';
+  for(var d=0; d<7; d++){
+    var v = map? map[d] : [600,1260];
+    h += '<div class="row" style="margin-bottom:6px;align-items:center"><div style="flex:0;min-width:92px">'+DAYNAMES[d]+'</div>'
+      + '<div style="flex:0"><label style="display:inline"><input type="checkbox" id="soff-'+id+'-'+d+'"'+(map && !v?' checked':'')+'> Day off</label></div>'
+      + '<div><select id="ss-'+id+'-'+d+'"></select></div><div><select id="se-'+id+'-'+d+'"></select></div></div>';
+  }
+  h += '<button class="act saveSched" data-id="'+id+'">Save schedule</button> <span class="msg" id="schedMsg-'+id+'"></span>'
+    + '<div style="font-weight:600;margin:12px 0 6px">Days off (one-off dates)</div><div id="offList-'+id+'"></div>'
+    + '<div class="row"><div><input type="date" id="offDate-'+id+'"></div><div style="flex:0"><button class="act addOff" data-id="'+id+'">Add day off</button></div></div>'
+    + '<p style="color:var(--muted);font-size:12.5px;margin-top:6px">A technician with no schedule saved works the shop hours (10:00 AM \u2013 9:00 PM) every day. Schedules and days off only take effect in Per-technician booking mode.</p>';
+  panel.innerHTML = h;
+  for(var d2=0; d2<7; d2++){
+    var v2 = map? map[d2] : [600,1260];
+    timeOptions($('ss-'+id+'-'+d2), v2? v2[0] : 600);
+    timeOptions($('se-'+id+'-'+d2), v2? v2[1] : 1260);
+  }
+  loadOffList(id);
+}
+function loadOffList(id){
+  api('tech_days_off', {qs: '&techId='+id}).then(function(j){
+    var el = $('offList-'+id); if(!el) return;
+    el.innerHTML = (j.days||[]).map(function(d){ return '<div style="margin-bottom:4px"><b>'+esc(d)+'</b> <button class="act cancel rmOff" data-tid="'+id+'" data-d="'+esc(d)+'">Remove</button></div>'; }).join('') || '<p style="color:var(--muted)">No one-off days off.</p>';
+  });
+}
+function saveSched(id){
+  var arr = [];
+  for(var d=0; d<7; d++){
+    if($('soff-'+id+'-'+d).checked) arr.push(null);
+    else arr.push([parseInt($('ss-'+id+'-'+d).value,10), parseInt($('se-'+id+'-'+d).value,10)]);
+  }
+  var body = {id: parseInt(id,10), name: document.querySelector('input[data-tech="'+id+'"]').value,
+              email: document.querySelector('input[data-techemail="'+id+'"]').value,
+              active: document.querySelector('input[data-techon="'+id+'"]').checked, sched: JSON.stringify(arr)};
+  api('technician_save', {method:'POST', body: body}).then(function(j){
+    var m = $('schedMsg-'+id); if(m) m.textContent = j.ok? '✓ Schedule saved' : (j.error||'Error');
+    if(j.ok){ var t = TECHLIST.find(function(x){ return String(x.id)===String(id); }); if(t) t.sched = JSON.stringify(arr); $('techMsg').textContent='✓ Saved'; }
   });
 }
 $('addTech').addEventListener('click', function(){
@@ -337,7 +418,23 @@ $('addTech').addEventListener('click', function(){
   api('technician_save', {method:'POST', body:{id:0, name: $('newTech').value, email: $('newTechEmail').value}}).then(function(j){ if(j.ok){ $('newTech').value=''; $('newTechEmail').value=''; $('techMsg').textContent='✓ Added'; loadTechs(); } else $('techMsg').textContent = j.error||'Error'; });
 });
 $('techList').addEventListener('click', function(e){
-  if(!e.target.classList.contains('saveTech')) return;
+  var cl = e.target.classList;
+  if(cl.contains('schedToggle')){
+    var panel = $('sched-'+e.target.dataset.id);
+    if(panel){ panel.classList.toggle('hidden'); if(!panel.dataset.built){ panel.dataset.built='1'; buildSchedPanel(e.target.dataset.id); } }
+    return;
+  }
+  if(cl.contains('saveSched')){ saveSched(e.target.dataset.id); return; }
+  if(cl.contains('addOff')){
+    var inp = $('offDate-'+e.target.dataset.id);
+    if(inp && inp.value) api('tech_dayoff_add', {method:'POST', body:{techId: parseInt(e.target.dataset.id,10), date: inp.value}}).then(function(){ loadOffList(e.target.dataset.id); });
+    return;
+  }
+  if(cl.contains('rmOff')){
+    api('tech_dayoff_remove', {method:'POST', body:{techId: parseInt(e.target.dataset.tid,10), date: e.target.dataset.d}}).then(function(){ loadOffList(e.target.dataset.tid); });
+    return;
+  }
+  if(!cl.contains('saveTech')) return;
   var id = e.target.dataset.id;
   var name = document.querySelector('input[data-tech="'+id+'"]').value;
   var on = document.querySelector('input[data-techon="'+id+'"]').checked;
@@ -396,17 +493,20 @@ function timeOptions(sel, val){
   sel.innerHTML = h;
 }
 function loadSettings(){
-  api('settings').then(function(j){
+  return api('settings').then(function(j){
     var s = j.settings||{};
     timeOptions($('sOpen'), parseInt(s.open_min||600,10)); timeOptions($('sClose'), parseInt(s.close_min||1260,10));
     $('sCap').value = s.capacity||2; $('sWin').value = s.window_days||30; $('sCut').value = s.cancel_cutoff_hours||3;
     $('sNotify').value = s.notify_emails||'';
+    $('sMode').value = s.booking_mode||'pool';
+    STAFFMODE = (s.booking_mode||'pool')==='staff';
+    syncStaffUI();
     $('blockedList').innerHTML = (j.blocked||[]).map(function(b){ return '<div style="margin-bottom:6px"><b>'+esc(b.d)+'</b> '+esc(b.note||'')+' <button class="act cancel unblock" data-d="'+esc(b.d)+'">Remove</button></div>'; }).join('') || '<p style="color:var(--muted)">No blocked dates.</p>';
   });
 }
 $('saveSettings').addEventListener('click', function(){
-  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value}})
-    .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); });
+  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value, booking_mode: $('sMode').value}})
+    .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); if(j.ok){ loadSettings(); loadBookings(); } });
 });
 $('bAdd').addEventListener('click', function(){
   if(!$('bDate').value) return;
@@ -437,7 +537,8 @@ $('msgList').addEventListener('click', function(e){
 });
 function loadAll(){
   $('dayPick').value = ''; $('mDate').value = todayStr();
-  loadBookings(); loadMessages(); loadTreatments(); loadTechs(); loadSettings();
+  loadMessages(); loadTreatments();
+  loadSettings().then(function(){ loadTechs(); loadBookings(); });
 }
 </script>
 <div id="toasts"></div>
