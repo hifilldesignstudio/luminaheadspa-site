@@ -41,7 +41,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><img src="../lumina-logo.png" alt="Lumina Head Spa &amp; Beauty"></div>
+  <div class="brand"><a href="../" title="Back to the Lumina homepage"><img src="../lumina-logo.svg" alt="Lumina Head Spa &amp; Beauty"></a></div>
   <h1>Manage your booking</h1>
   <p class="sub">Reschedule or cancel — no login needed with your private link.</p>
   <div id="root"><p style="text-align:center;color:var(--muted)">Loading your booking…</p></div>

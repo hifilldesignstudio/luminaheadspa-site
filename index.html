@@ -686,16 +686,18 @@
     else railHint.textContent='';
     syncMbar();
   }
-  function goStep(n){
+  function goStep(n, noScroll){
     step=n;
     Object.keys(panels).forEach(function(k){ panels[k].hidden=parseInt(k,10)!==n; });
     if(n===3 && staffMode) renderTherapists();
     renderRail();
     /* Bring the new panel into view — on mobile it stacks below the rail,
        so without this the guest is left staring at the old spot (most
-       noticeable on the final confirmation). Only scrolls when needed. */
+       noticeable on the final confirmation). Only scrolls when needed.
+       The initial page-load call passes noScroll: opening the homepage
+       must land at the top, never jump down to the booking widget. */
     var p=panels[n];
-    if(p && p.scrollIntoView){
+    if(p && p.scrollIntoView && !noScroll){
       var r=p.getBoundingClientRect();
       if(r.top<70 || r.top>window.innerHeight*0.55){ try{ p.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){ p.scrollIntoView(); } }
     }
@@ -968,7 +970,7 @@
   if(firstRow){ picks=[firstRow]; }
   selDay=today; selDayLabel=fmtFull.format(today);
   refreshBadges(); renderStrip(); buildTimes();
-  goStep(1);
+  goStep(1, true);
 })();
   var toTopBtn=document.getElementById('toTop');
   if(toTopBtn){
