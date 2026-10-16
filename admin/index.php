@@ -54,6 +54,10 @@
   .hidden{display:none}
   .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
   .row>*{flex:1;min-width:130px}
+
+  #toasts{position:fixed;top:14px;right:14px;z-index:999;display:flex;flex-direction:column;gap:8px}
+  .toast{background:#2b2118;color:#fdf8ef;padding:12px 16px;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.35);font-size:14px;line-height:1.45;cursor:pointer;max-width:330px;transition:opacity .4s}
+  .toast.out{opacity:0}
 </style>
 </head>
 <body>
@@ -82,11 +86,11 @@
       <div class="row" style="margin-bottom:6px">
         <div><label>Search</label><input id="q" placeholder="Name, phone or reference…"></div>
         <div><label>Date</label><input type="date" id="dayPick"></div>
-        <div style="flex:0"><button class="btn dark" id="todayBtn">Today</button></div>
+        <div style="flex:0"><button class="btn" id="upBtn">Upcoming</button> <button class="btn dark" id="todayBtn">Today</button> <button class="btn" id="alertBtn">🔔 Enable alerts</button></div>
       </div>
       <h3 class="sec">Waiting for confirmation</h3>
       <div id="pendingList"></div>
-      <h3 class="sec">Bookings for the day</h3>
+      <h3 class="sec" id="dayTitle">Upcoming bookings</h3>
       <div id="dayList"></div>
       <h3 class="sec">Calendar</h3>
       <div class="card">
@@ -193,6 +197,7 @@ document.querySelectorAll('.tab').forEach(function(t){
 
 /* ---------- bookings ---------- */
 var viewDay = todayStr(), calY, calM;
+var listMode = 'upcoming';
 (function(){ var d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); })();
 function badge(st){ return '<span class="badge '+st+'">'+st+'</span>'; }
 function cardHTML(b){
@@ -210,7 +215,11 @@ function cardHTML(b){
 document.body.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('button[data-st]') : null;
   if(!btn) return;
-  api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(loadBookings);
+  var fromQueue = btn.closest && btn.closest('#pendingList');
+  api('booking_status', {method:'POST', body:{id: parseInt(btn.dataset.id,10), status: btn.dataset.st}}).then(function(){
+    if(fromQueue && btn.dataset.st==='confirmed' && !$('q').value.trim()) listMode = 'upcoming';
+    loadBookings();
+  });
 });
 function loadBookings(){
   var q = $('q').value.trim();
@@ -219,15 +228,22 @@ function loadBookings(){
     $('pendCount').textContent = pend.length; $('pendCount').classList.toggle('hidden', !pend.length);
     $('pendingList').innerHTML = pend.length? pend.map(cardHTML).join('') : '<p style="color:var(--muted)">All caught up — nothing waiting. ✓</p>';
   });
-  var qs = q? '&q='+encodeURIComponent(q) : '&date='+viewDay;
+  var qs, title;
+  if(q){ qs = '&q='+encodeURIComponent(q); title = 'Search results'; }
+  else if(listMode==='upcoming'){ qs = '&from='+todayStr(); title = 'Upcoming bookings'; }
+  else { qs = '&date='+viewDay; title = 'Bookings for '+viewDay; }
+  $('dayTitle').textContent = title;
   api('bookings', {qs: qs}).then(function(j){
-    $('dayList').innerHTML = (j.bookings||[]).length? j.bookings.map(cardHTML).join('') : '<p style="color:var(--muted)">No bookings found.</p>';
+    var list = (j.bookings||[]);
+    if(listMode==='upcoming' && !q) list = list.filter(function(b){ return b.status!=='cancelled'; });
+    $('dayList').innerHTML = list.length? list.map(cardHTML).join('') : '<p style="color:var(--muted)">No bookings found.</p>';
   });
   loadCal();
 }
 $('q').addEventListener('input', loadBookings);
-$('dayPick').addEventListener('change', function(){ viewDay = this.value || todayStr(); loadBookings(); });
+$('dayPick').addEventListener('change', function(){ viewDay = this.value || todayStr(); listMode='day'; loadBookings(); });
 $('todayBtn').addEventListener('click', function(){ viewDay = todayStr(); $('dayPick').value = viewDay; $('q').value=''; loadBookings(); });
+$('upBtn').addEventListener('click', function(){ listMode='upcoming'; $('q').value=''; loadBookings(); });
 function loadCal(){
   var ym = calY+'-'+String(calM+1).padStart(2,'0');
   $('calTitle').textContent = new Date(calY, calM, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
@@ -244,7 +260,7 @@ function loadCal(){
     }
     $('calGrid').innerHTML = h;
     $('calGrid').querySelectorAll('.day[data-day]').forEach(function(el){
-      el.addEventListener('click', function(){ viewDay = el.dataset.day; $('dayPick').value = viewDay; $('q').value=''; loadBookings(); });
+      el.addEventListener('click', function(){ viewDay = el.dataset.day; $('dayPick').value = viewDay; $('q').value=''; listMode='day'; loadBookings(); });
     });
   });
 }
@@ -329,6 +345,51 @@ $('techList').addEventListener('click', function(e){
   api('technician_save', {method:'POST', body:{id: parseInt(id,10), name: name, active: on, email: em}}).then(function(){ $('techMsg').textContent='✓ Saved'; });
 });
 
+/* ---------- new-booking alerts (sound + popup while this page is open) ---------- */
+var alertOn = localStorage.getItem('lumina_alerts')==='1';
+var snap = null, actx = null, baseTitle = document.title;
+function chime(){ try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); var t=actx.currentTime; [880,1174].forEach(function(f,i){ var o=actx.createOscillator(), g=actx.createGain(); o.frequency.value=f; o.type='sine'; g.gain.setValueAtTime(0.0001, t+i*0.18); g.gain.exponentialRampToValueAtTime(0.22, t+i*0.18+0.03); g.gain.exponentialRampToValueAtTime(0.0001, t+i*0.18+0.5); o.connect(g); g.connect(actx.destination); o.start(t+i*0.18); o.stop(t+i*0.18+0.55); }); }catch(e){} }
+function toast(html){
+  var box = $('toasts'); if(!box) return;
+  var el = document.createElement('div'); el.className='toast'; el.innerHTML = html;
+  el.addEventListener('click', function(){ el.remove(); document.title = baseTitle; document.querySelector('.tab[data-tab="bookings"]').click(); listMode='upcoming'; loadBookings(); });
+  box.appendChild(el);
+  setTimeout(function(){ el.classList.add('out'); setTimeout(function(){ el.remove(); }, 400); }, 14000);
+}
+function notifyDesktop(title, body){ try{ if(window.Notification && Notification.permission==='granted'){ var n = new Notification(title, {body: body}); n.onclick = function(){ window.focus(); n.close(); }; } }catch(e){} }
+function pollAlerts(){
+  if(!alertOn) return;
+  api('bookings', {qs: '&from='+todayStr()}).then(function(j){
+    var cur = {}; (j.bookings||[]).forEach(function(b){ cur[b.id] = b; });
+    if(snap){
+      Object.keys(cur).forEach(function(id){
+        var b = cur[id], old = snap[id];
+        if(!old && b.source==='online' && b.status==='pending'){
+          chime(); document.title = '(•) New booking — ' + baseTitle;
+          toast('🔔 <b>New booking</b> — ' + esc(b.name) + '<br>' + esc(b.dayLabel) + ' · ' + esc(b.startLabel) + ' · Ref ' + esc(b.ref));
+          notifyDesktop('New Lumina booking — ' + b.ref, b.name + ' · ' + b.dayLabel + ' ' + b.startLabel);
+        } else if(old && old.status!=='cancelled' && b.status==='cancelled'){
+          chime();
+          toast('⚠️ <b>Booking cancelled</b> — ' + esc(b.name) + '<br>' + esc(b.dayLabel) + ' · ' + esc(b.startLabel) + ' · Ref ' + esc(b.ref));
+          notifyDesktop('Lumina booking cancelled — ' + b.ref, b.name + ' · ' + b.dayLabel + ' ' + b.startLabel);
+        }
+      });
+    }
+    snap = cur;
+  }).catch(function(){});
+}
+function refreshAlertBtn(){ $('alertBtn').textContent = alertOn? '🔔 Alerts on' : '🔔 Enable alerts'; }
+$('alertBtn').addEventListener('click', function(){
+  alertOn = !alertOn; localStorage.setItem('lumina_alerts', alertOn? '1' : '0');
+  if(alertOn){ chime(); if(window.Notification && Notification.permission==='default') Notification.requestPermission(); snap = null; pollAlerts(); }
+  refreshAlertBtn();
+});
+refreshAlertBtn();
+window.addEventListener('focus', function(){ document.title = baseTitle; });
+document.addEventListener('click', function(){ if(actx && actx.state==='suspended') actx.resume(); });
+if(alertOn) pollAlerts();
+setInterval(pollAlerts, 30000);
+
 /* ---------- settings ---------- */
 function timeOptions(sel, val){
   var h=''; for(var m=420; m<=1380; m+=30){ var hh=Math.floor(m/60), mm=m%60, ap=hh>=12?'PM':'AM', h12=hh%12||12; h+='<option value="'+m+'"'+(m===val?' selected':'')+'>'+h12+':'+String(mm).padStart(2,'0')+' '+ap+'</option>'; }
@@ -375,9 +436,10 @@ $('msgList').addEventListener('click', function(e){
   api('message_seen', {method:'POST', body:{id: parseInt(b.dataset.msg,10), seen: b.dataset.seen==='1'}}).then(loadMessages);
 });
 function loadAll(){
-  $('dayPick').value = viewDay; $('mDate').value = todayStr();
+  $('dayPick').value = ''; $('mDate').value = todayStr();
   loadBookings(); loadMessages(); loadTreatments(); loadTechs(); loadSettings();
 }
 </script>
+<div id="toasts"></div>
 </body>
 </html>

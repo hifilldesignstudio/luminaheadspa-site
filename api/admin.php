@@ -47,8 +47,9 @@ if ($action === 'bookings') {
     if (!empty($_GET['status'])) { $where[] = "status = ?"; $args[] = $_GET['status']; }
     if (!empty($_GET['date'])) { $where[] = "date = ?"; $args[] = $_GET['date']; }
     if (!empty($_GET['q'])) { $where[] = "(name LIKE ? OR phone LIKE ? OR ref LIKE ?)"; $q = '%' . $_GET['q'] . '%'; $args = array_merge($args, [$q, $q, $q]); }
+    if (!empty($_GET['from'])) { $where[] = "date >= ?"; $args[] = $_GET['from']; }
     $sql = "SELECT * FROM bookings" . ($where ? " WHERE " . implode(' AND ', $where) : "")
-         . " ORDER BY (status='pending') DESC, date, start_min LIMIT 300";
+         . " ORDER BY " . (!empty($_GET['from']) ? "date, start_min" : "(status='pending') DESC, date, start_min") . " LIMIT 300";
     $st = $pdo->prepare($sql); $st->execute($args);
     lumina_json(['ok' => true, 'bookings' => array_map(fn($b) => booking_full($pdo, $b), $st->fetchAll())]);
 }
