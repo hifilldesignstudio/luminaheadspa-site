@@ -123,7 +123,8 @@ if ($action === 'book') {
         "New online booking (reference $ref)\n\nGuest: $name\nPhone: $phone\nEmail: " . ($email ?: '(not given)') .
         "\nDate: $when\n" . implode("\n", $lines) . $withLine . "\nTotal: $$totalPrice · $totalMin min" .
         ($note !== '' ? "\nGuest note: $note" : '') .
-        "\n\nStatus: pending — please confirm it in the admin: https://luminaheadspa.ca/admin/");
+        "\n\nStatus: pending — please confirm it in the admin: https://luminaheadspa.ca/admin/",
+        null, [$asTech, $asTech2]);
     if ($email !== '') {
         lumina_mail($email, "Your Lumina booking request — $ref",
             "Hi $name,\n\nThank you for booking with Lumina Head Spa & Beauty.\nWe have received your request and will confirm shortly.\n\nReference: $ref\nDate: $when\n" .
@@ -152,7 +153,7 @@ if ($action === 'contact') {
             ->execute([$name, $email, $phone, $msg, lumina_now()->format('Y-m-d H:i:s')]);
     } catch (Exception $e) { /* the email below still goes out */ }
     lumina_notify($pdo, "Website message from $name",
-        "New message from the Lumina website contact form:\n\nName: $name\nEmail: $email\nPhone: " . ($phone ?: '(not given)') . "\n\n$msg\n\n— Just reply to this email to answer them.", $email);
+        "New message from the Lumina website contact form:\n\nName: $name\nEmail: $email\nPhone: " . ($phone ?: '(not given)') . "\n\n$msg\n\n— Just reply to this email to answer them.", $email, []);
     lumina_json(['ok' => true]);
 }
 
@@ -187,7 +188,8 @@ if ($action === 'manage_cancel') {
     }
     $pdo->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?")->execute([$b['id']]);
     lumina_notify($pdo, "Booking cancelled — {$b['ref']}",
-        "The guest cancelled booking {$b['ref']}.\n\nGuest: {$b['name']} ({$b['phone']})\nWas: " . lumina_fmt_day($b['date']) . ', ' . lumina_fmt_time((int)$b['start_min']) . "\nThe time slot is now free again.");
+        "The guest cancelled booking {$b['ref']}.\n\nGuest: {$b['name']} ({$b['phone']})\nWas: " . lumina_fmt_day($b['date']) . ', ' . lumina_fmt_time((int)$b['start_min']) . "\nThe time slot is now free again.",
+        null, [!empty($b['tech_id']) ? (int)$b['tech_id'] : 0, !empty($b['tech2_id']) ? (int)$b['tech2_id'] : 0]);
     lumina_json(['ok' => true, 'status' => 'cancelled']);
 }
 
@@ -199,6 +201,9 @@ if ($action === 'manage_reschedule') {
     $start = (int)($in['start'] ?? -1);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) lumina_json(['ok' => false, 'error' => 'Bad date'], 400);
     $staffMode = lumina_mode($pdo) === 'staff';
+    /* Pre-change assignees: if the reschedule reassigns the booking, the
+       technician who loses it is still notified (union built at send time). */
+    $preTechs = [!empty($b['tech_id']) ? (int)$b['tech_id'] : 0, !empty($b['tech2_id']) ? (int)$b['tech2_id'] : 0];
     $pdo->query("SELECT GET_LOCK('lumina_book', 5)");
     try {
         $end = $start + (int)$b['total_min'];
@@ -233,7 +238,8 @@ if ($action === 'manage_reschedule') {
     $lines = lumina_booking_lines($pdo, (int)$b['id']);
     $withLine = lumina_with_line($pdo, $b);
     lumina_notify($pdo, "Booking rescheduled — {$b['ref']}",
-        "Booking {$b['ref']} was moved by the guest.\n\nGuest: {$b['name']} ({$b['phone']})\nNew time: " . lumina_fmt_day($date) . "\n" . implode("\n", $lines) . $withLine);
+        "Booking {$b['ref']} was moved by the guest.\n\nGuest: {$b['name']} ({$b['phone']})\nNew time: " . lumina_fmt_day($date) . "\n" . implode("\n", $lines) . $withLine,
+        null, array_merge($preTechs, [!empty($b['tech_id']) ? (int)$b['tech_id'] : 0, !empty($b['tech2_id']) ? (int)$b['tech2_id'] : 0]));
     if ($b['email'] !== '') {
         lumina_mail($b['email'], "Your Lumina booking was moved — {$b['ref']}",
             "Hi {$b['name']},\n\nYour booking {$b['ref']} is now:\n" . lumina_fmt_day($date) . "\n" . implode("\n", $lines) . $withLine .

@@ -126,9 +126,13 @@ function lumina_ensure_tech_email($pdo) {
 }
 
 /* Shop notifications: the shop's main email always receives them, plus any
-   extra addresses from the admin 'notify_emails' setting, plus every active
-   technician who has an email on file. */
-function lumina_notify($pdo, $subject, $body, $replyTo = null) {
+   extra addresses from the admin 'notify_emails' setting, plus technicians.
+   In pool mode every active technician with an email on file is included.
+   In staff mode (Model B) technicians are scoped: $techIds lists the only
+   technician ids to include — a booking's assigned techs for booking events,
+   [] for non-booking notices (technicians then receive none). $techIds is
+   ignored in pool mode, so pool behaviour is unchanged either way. */
+function lumina_notify($pdo, $subject, $body, $replyTo = null, $techIds = null) {
     $cfg = lumina_config();
     $list = [ ($cfg && !empty($cfg['shop_email'])) ? $cfg['shop_email'] : 'info@luminaheadspa.ca' ];
     if ($pdo) {
@@ -141,12 +145,28 @@ function lumina_notify($pdo, $subject, $body, $replyTo = null) {
             }
         }
         lumina_ensure_tech_email($pdo);
-        try {
-            foreach ($pdo->query("SELECT email FROM technicians WHERE active = 1 AND email <> ''")->fetchAll() as $t) {
-                $a = trim((string)$t['email']);
-                if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
+        $staffMode = false;
+        try { $staffMode = lumina_mode($pdo) === 'staff'; } catch (Exception $e) { $staffMode = false; }
+        if ($staffMode) {
+            $ids = [];
+            if (is_array($techIds)) foreach ($techIds as $tid) { $tid = (int)$tid; if ($tid > 0) $ids[] = $tid; }
+            if ($ids) {
+                $in = implode(',', array_map('intval', array_unique($ids)));
+                try {
+                    foreach ($pdo->query("SELECT email FROM technicians WHERE active = 1 AND email <> '' AND id IN ($in)")->fetchAll() as $t) {
+                        $a = trim((string)$t['email']);
+                        if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
+                    }
+                } catch (Exception $e) { /* technicians table not ready */ }
             }
-        } catch (Exception $e) { /* technicians table not ready */ }
+        } else {
+            try {
+                foreach ($pdo->query("SELECT email FROM technicians WHERE active = 1 AND email <> ''")->fetchAll() as $t) {
+                    $a = trim((string)$t['email']);
+                    if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
+                }
+            } catch (Exception $e) { /* technicians table not ready */ }
+        }
     }
     foreach (array_unique($list) as $to) lumina_mail($to, $subject, $body, $replyTo);
 }

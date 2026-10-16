@@ -134,6 +134,18 @@ if ($action === 'phone_booking') {
     $ii = $pdo->prepare("INSERT INTO booking_items (booking_id, treatment_id, name_snapshot, minutes, price, start_min, end_min) VALUES (?, ?, ?, ?, ?, ?, ?)");
     $t = $start;
     foreach ($items as $it) { $ii->execute([$bid, (int)$it['id'], $it['name'], (int)$it['minutes'], (int)$it['price'], $t, $t + (int)$it['minutes']]); $t += (int)$it['minutes']; }
+    if ($staffMode) {
+        /* Staff mode only: the shop and the assigned technician(s) hear about
+           the phone booking. Pool mode sends no phone-booking notice, as before. */
+        $lines = lumina_booking_lines($pdo, $bid);
+        $withLine = lumina_with_line($pdo, ['tech_id' => $asTech, 'tech2_id' => $asTech2]);
+        lumina_notify($pdo, "New phone booking $ref — $name, " . lumina_fmt_day($date),
+            "New phone booking (reference $ref)\n\nGuest: $name\nPhone: $phone\nEmail: " . ($email ?: '(not given)') .
+            "\nDate: " . lumina_fmt_day($date) . "\n" . implode("\n", $lines) . $withLine . "\nTotal: $$totalPrice · $totalMin min" .
+            ($note !== '' ? "\nGuest note: $note" : '') .
+            "\n\nStatus: confirmed (taken by phone).",
+            null, [$asTech, $asTech2]);
+    }
     lumina_json(['ok' => true, 'ref' => $ref]);
 }
 
@@ -250,6 +262,16 @@ if ($action === 'booking_assign') {
     } finally {
         $pdo->query("SELECT RELEASE_LOCK('lumina_book')");
     }
+    /* This action is staff-mode only: tell the shop and the newly assigned
+       technician(s) that the booking is now theirs. */
+    $map = lumina_tech_name_map($pdo);
+    $names = [];
+    foreach ([$as['tech_id'], $as['tech2_id']] as $tid) if (!empty($tid) && !empty($map[(int)$tid])) $names[] = $map[(int)$tid];
+    $lines = lumina_booking_lines($pdo, (int)$b['id']);
+    $withLine = lumina_with_line($pdo, ['tech_id' => $as['tech_id'], 'tech2_id' => $as['tech2_id']]);
+    lumina_notify($pdo, "Booking assigned — {$b['ref']}",
+        "Booking {$b['ref']} is now assigned to " . ($names ? implode(' & ', $names) : '—') . ".\n\nGuest: {$b['name']} ({$b['phone']})\nDate: " . lumina_fmt_day($b['date']) . ', ' . lumina_fmt_time((int)$b['start_min']) . "\n" . implode("\n", $lines) . $withLine,
+        null, [$as['tech_id'], $as['tech2_id']]);
     lumina_json(['ok' => true]);
 }
 if ($action === 'blocked_add') {
