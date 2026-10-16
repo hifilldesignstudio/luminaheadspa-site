@@ -818,11 +818,18 @@ function loadMessages(){
         + (m.seen==0?' <span class="badge pending">New</span>':'')
         + '<div style="margin-top:8px;white-space:pre-wrap">'+esc(m.message)+'</div>'
         + '<div style="margin-top:10px"><a class="act" href="mailto:'+esc(m.email)+'">Reply by email</a>'
-        + '<button class="act" data-msg="'+m.id+'" data-seen="'+(m.seen==0?1:0)+'">'+(m.seen==0?'Mark as read':'Mark as unread')+'</button></div></div>';
+        + '<button class="act" data-msg="'+m.id+'" data-seen="'+(m.seen==0?1:0)+'">'+(m.seen==0?'Mark as read':'Mark as unread')+'</button>'
+        + '<button class="act cancel" data-msgdel="'+m.id+'">Delete</button></div></div>';
     }).join('') : '<p style="color:var(--muted)">No messages yet — they will appear here when a guest writes from the About &amp; Contact page.</p>';
   });
 }
 $('msgList').addEventListener('click', function(e){
+  var d = e.target.closest ? e.target.closest('button[data-msgdel]') : null;
+  if(d){
+    if(!confirm('Delete this message? This cannot be undone.')) return;
+    api('message_delete', {method:'POST', body:{id: parseInt(d.dataset.msgdel,10)}}).then(loadMessages);
+    return;
+  }
   var b = e.target.closest ? e.target.closest('button[data-msg]') : null;
   if(!b) return;
   api('message_seen', {method:'POST', body:{id: parseInt(b.dataset.msg,10), seen: b.dataset.seen==='1'}}).then(loadMessages);
