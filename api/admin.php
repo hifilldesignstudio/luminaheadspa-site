@@ -347,30 +347,6 @@ if ($action === 'groups') {
     lumina_json(['ok' => true, 'groups' => $rows]);
 }
 
-if ($action === 'group_add') {
-    lumina_ensure_groups($pdo);
-    $in = body_json();
-    $name = trim((string)($in['name'] ?? ''));
-    if ($name === '') lumina_json(['ok' => false, 'error' => 'Group name required'], 422);
-    $max = (int)$pdo->query("SELECT COALESCE(MAX(sort), 0) FROM treatment_groups")->fetchColumn();
-    $st = $pdo->prepare("INSERT IGNORE INTO treatment_groups (name, sort) VALUES (?, ?)");
-    $st->execute([$name, $max + 10]);
-    if ($st->rowCount() === 0) lumina_json(['ok' => false, 'error' => 'That group already exists.'], 409);
-    lumina_json(['ok' => true]);
-}
-
-if ($action === 'group_delete') {
-    lumina_ensure_groups($pdo);
-    $in = body_json();
-    $name = trim((string)($in['name'] ?? ''));
-    $q = $pdo->prepare("SELECT COUNT(*) FROM treatments WHERE cat = ?");
-    $q->execute([$name]);
-    $n = (int)$q->fetchColumn();
-    if ($n > 0) lumina_json(['ok' => false, 'error' => "$n treatment(s) still use this group — move them to another group first, then delete it."], 422);
-    $pdo->prepare("DELETE FROM treatment_groups WHERE name = ?")->execute([$name]);
-    lumina_json(['ok' => true]);
-}
-
 if ($action === 'treatment_delete') {
     /* Same protection as technicians: a treatment that appears in past
        bookings is hidden (deactivated) instead of deleted, so booking

@@ -176,13 +176,6 @@
     </section>
 
     <section id="tab-treatments" class="hidden">
-      <div class="card" style="margin-bottom:14px">
-        <h3 style="margin-bottom:8px">Groups</h3>
-        <div id="groupList"></div>
-        <div class="row" style="margin-top:10px"><div><input id="newGroup" placeholder="New group name"></div><div style="flex:0"><button class="btn" id="addGroup">Add group</button></div></div>
-        <p class="msg" id="groupMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Groups organize the treatments below — each row picks its group from the dropdown, so names always match. A group can be deleted once no treatments use it.</p>
-      </div>
       <div class="card" style="overflow-x:auto">
         <table><thead><tr><th>Name</th><th>Group</th><th>Min</th><th>Price $</th><th>Spots</th><th>On</th><th></th></tr></thead><tbody id="treatBody"></tbody></table>
         <button class="btn" id="addTreat" style="margin-top:14px">+ Add treatment</button>
@@ -552,11 +545,6 @@ function groupOptions(cur){
   if(cur && names.indexOf(cur) < 0) names.unshift(cur);
   return names.map(function(n){ return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+'</option>'; }).join('');
 }
-function renderGroupList(){
-  $('groupList').innerHTML = GROUPS.map(function(g){
-    return '<span style="display:inline-block;background:#f6efe1;border:1px solid var(--line);border-radius:99px;padding:4px 8px 4px 12px;margin:0 6px 6px 0">'+esc(g.name)+' <span style="color:var(--muted)">('+g.n+')</span> <button class="act cancel delGroup" data-name="'+esc(g.name)+'" title="Delete group">✕</button></span>';
-  }).join('') || '<span style="color:var(--muted)">No groups yet.</span>';
-}
 function renderTreatRows(){
   $('treatBody').innerHTML = TREATROWS.map(function(t){
     return '<tr data-id="'+t.id+'"><td><input value="'+esc(t.name)+'"></td><td><select class="mini">'+groupOptions(t.cat)+'</select></td>'
@@ -573,7 +561,6 @@ function loadTreatments(){
     fillTreatSelects(); if($('mDate').value) fillTimes();
     api('groups').then(function(g){
       GROUPS = (g.groups||[]);
-      renderGroupList();
       renderTreatRows();
     });
   });
@@ -601,22 +588,7 @@ $('treatBody').addEventListener('click', function(e){
 $('addTreat').addEventListener('click', function(){
   api('treatment_save', {method:'POST', body:{id:0, name:'New Treatment', cat: GROUPS.length? GROUPS[0].name : 'Signature', minutes:60, price:68, units:1, active:true, sort:99}}).then(loadTreatments);
 });
-$('addGroup').addEventListener('click', function(){
-  var name = $('newGroup').value.trim(); if(!name) return;
-  api('group_add', {method:'POST', body:{name: name}}).then(function(j){
-    $('groupMsg').textContent = (j && j.ok)? '✓ Group added' : ((j && j.error) || 'Error');
-    if(j && j.ok){ $('newGroup').value = ''; loadTreatments(); }
-  });
-});
-$('groupList').addEventListener('click', function(e){
-  if(!e.target.classList.contains('delGroup')) return;
-  var name = e.target.dataset.name;
-  if(!confirm('Delete the group "' + name + '"? This only removes the empty group — treatments are not changed.')) return;
-  api('group_delete', {method:'POST', body:{name: name}}).then(function(j){
-    if(j && j.ok){ $('groupMsg').textContent = '✓ Group deleted'; loadTreatments(); }
-    else alert((j && j.error) || 'Could not delete that group.');
-  });
-});
+
 
 /* ---------- technicians ---------- */
 function fillTechSelects(){

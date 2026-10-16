@@ -225,11 +225,12 @@ function lumina_ensure_modelb($pdo) {
     } catch (Exception $e) { /* tables may not exist yet */ }
 }
 
-/* Treatment groups, managed in the admin (Treatments tab). The group list
-   drives the Group dropdown on each treatment row so a typo can't split a
-   group in two. Seeded once from the distinct group names already in use,
-   in their current display order. Treatments keep their group as a plain
-   string — deleting a group never touches treatments. */
+/* Treatment groups (provider-managed: per Illo 2026-10-16 the shop picks a
+   treatment's group from a dropdown but cannot add or remove groups — the
+   category structure stays under Hifill's control, matching the website's
+   designed category tabs). The list drives the Group dropdown on each
+   treatment row so a typo can't split a group in two. Seeded once from the
+   distinct group names already in use, in their current display order. */
 function lumina_ensure_groups($pdo) {
     static $done = false;
     if ($done || !$pdo) return;
