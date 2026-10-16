@@ -66,9 +66,19 @@
   .cal .day .ovr-dot{color:var(--brass-d);font-weight:700}
   .cal .day.today{border-color:var(--brass-d);background:#fdf6ea}
   #teamGrid .day{cursor:default;text-align:left;overflow:hidden}
+  #teamGrid .day.tap{cursor:pointer}
   #teamGrid .day .tnum{font-weight:700;font-size:12px;margin-bottom:2px}
   #teamGrid .day .tline{font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #teamGrid .day .tline.off{color:var(--muted)}
+  #teamGrid .tsum{display:none;font-size:11px;color:var(--brass-d);font-weight:700;margin-top:2px}
+  @media(max-width:700px){ #teamGrid .day .tline{display:none} #teamGrid .tsum{display:block} }
+  .daypop{position:fixed;inset:0;background:rgba(23,20,16,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+  .daypop.hidden{display:none}
+  .daypop-card{background:var(--card);border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:520px;max-height:82vh;overflow:auto;position:relative}
+  @media(min-width:700px){ .daypop{align-items:center;padding:20px} .daypop-card{border-radius:18px} }
+  .daypop-x{position:absolute;top:10px;right:12px;background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--muted);padding:4px 8px}
+  .daypop-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:15px}
+  .daypop-row .off{color:var(--muted)}
   .rday-ed{border:1px solid var(--line);border-radius:12px;background:#fffdf9;padding:12px 14px;margin:12px 0 4px}
   .msg{min-height:20px;color:var(--green);font-size:14px;margin-top:10px}
   .err{color:var(--red)}
@@ -170,6 +180,14 @@
         <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Who works when, day by day — handy for part-timers with changing days. To change a day, open "Roster &amp; schedule" under that technician's name below and tap the day.</p>
         <div class="row" style="margin-bottom:12px"><button class="act" id="teamPrev">‹ Prev</button><b id="teamTitle" style="text-align:center"></b><button class="act" id="teamNext">Next ›</button></div>
         <div class="cal" id="teamGrid"></div>
+      </div>
+      <div class="daypop hidden" id="teamDayPop">
+        <div class="daypop-card">
+          <button class="daypop-x" id="teamDayX" aria-label="Close">×</button>
+          <h3 id="teamDayTitle" style="margin-bottom:8px"></h3>
+          <div id="teamDayBody"></div>
+          <p style="color:var(--muted);font-size:13px;margin-top:12px">To change a day, open "Roster &amp; schedule" under that technician's name and tap the day.</p>
+        </div>
       </div>
       <div class="card">
         <div id="techList"></div>
@@ -693,13 +711,15 @@ function renderTeamMonth(){
   for(var n=1; n<=dim; n++){
     var ds = ym+'-'+String(n).padStart(2,'0');
     if(ds < todayStr()){ h += '<div class="day past"><div class="tnum">'+n+'</div></div>'; continue; } /* past days are not shown */
-    var cell = '<div class="day'+(ds === todayStr()? ' today' : '')+'"><div class="tnum">'+n+'</div>';
+    var cell = '<div class="day tap'+(ds === todayStr()? ' today' : '')+'" data-tday="'+ds+'"><div class="tnum">'+n+'</div>';
+    var working = 0;
     techs.forEach(function(t){
       var w = days && days[ds]? days[ds][t.id] : undefined;
       if(!days) cell += '<div class="tline">&nbsp;</div>';
-      else if(w) cell += '<div class="tline" title="'+esc(t.name)+'">'+esc(teamFirstName(t.name))+' '+fmtHrs(w[0], w[1])+'</div>';
+      else if(w){ working++; cell += '<div class="tline" title="'+esc(t.name)+'">'+esc(teamFirstName(t.name))+' '+fmtHrs(w[0], w[1])+'</div>'; }
       else cell += '<div class="tline off" title="'+esc(t.name)+'">'+esc(teamFirstName(t.name))+' Off</div>';
     });
+    if(days) cell += '<div class="tsum">'+(working? working+' in' : 'All off')+'</div>';
     h += cell + '</div>';
   }
   grid.innerHTML = h;
@@ -714,6 +734,24 @@ function loadTeamMonth(){
     renderTeamMonth();
   });
 }
+function fmtT(min){ var h=Math.floor(min/60), m=min%60, ap=h>=12?'PM':'AM', h12=h%12||12; return h12+':'+String(m).padStart(2,'0')+' '+ap; }
+function openTeamDay(ds){
+  if(!teamData || !teamData.days) return;
+  var dObj = new Date(ds+'T12:00:00');
+  $('teamDayTitle').textContent = dObj.toLocaleDateString('en-CA',{weekday:'long', month:'long', day:'numeric'});
+  var dayMap = teamData.days[ds] || {};
+  $('teamDayBody').innerHTML = (teamData.techs||[]).length? (teamData.techs||[]).map(function(t){
+    var w = dayMap[t.id];
+    return '<div class="daypop-row"><span>'+esc(t.name)+'</span>'+(w? '<b>'+fmtT(w[0])+' – '+fmtT(w[1])+'</b>' : '<span class="off">Off</span>')+'</div>';
+  }).join('') : '<p style="color:var(--muted)">No technicians yet.</p>';
+  $('teamDayPop').classList.remove('hidden');
+}
+$('teamGrid').addEventListener('click', function(e){
+  var c = e.target.closest ? e.target.closest('[data-tday]') : null;
+  if(c) openTeamDay(c.dataset.tday);
+});
+$('teamDayX').addEventListener('click', function(){ $('teamDayPop').classList.add('hidden'); });
+$('teamDayPop').addEventListener('click', function(e){ if(e.target === this) this.classList.add('hidden'); });
 $('teamPrev').addEventListener('click', function(){ teamM--; if(teamM<0){ teamM=11; teamY--; } loadTeamMonth(); });
 $('teamNext').addEventListener('click', function(){ teamM++; if(teamM>11){ teamM=0; teamY++; } loadTeamMonth(); });
 document.querySelector('.tab[data-tab="techs"]').addEventListener('click', function(){ loadTeamMonth(); });
