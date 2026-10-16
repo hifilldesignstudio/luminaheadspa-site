@@ -315,6 +315,12 @@
   .tslot-h{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;font-weight:600}
   .fld textarea{resize:vertical;min-height:58px}
   .chip.off{opacity:.35;text-decoration:line-through;pointer-events:none}
+  .th-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .th-card{border:1px solid #d8cdb8;background:#fff;border-radius:14px;padding:14px 12px;cursor:pointer;font-family:'Jost',sans-serif;text-align:left;display:flex;flex-direction:column;gap:3px}
+  .th-card .th-n{font-size:16px;font-weight:500;color:var(--ink)}
+  .th-card .th-s{font-size:12.5px;color:var(--muted)}
+  .th-card.sel{border-color:var(--brass);background:#faf5ea;box-shadow:0 0 0 1px var(--brass)}
+  .th-card.off{opacity:.45;cursor:not-allowed}
   .trow .addbtn{flex:0 0 auto;align-self:center;margin-left:12px;border:1.5px solid var(--brass);color:var(--brass-d);border-radius:999px;padding:6px 15px;font-size:13.5px;font-weight:500;white-space:nowrap}
   .trow.sel .addbtn{background:var(--brass);color:#fff}
 
@@ -428,7 +434,7 @@
   <div class="book-info">
     <div class="kicker">Online Booking</div>
     <h2>Book in about a minute.</h2>
-    <p>Choose your treatment and a time that suits you — no need to pick a technician, we arrange that for you on the day. We confirm every booking personally.</p>
+    <p id="bookIntro">Choose your treatment and a time that suits you — no need to pick a technician, we arrange that for you on the day. We confirm every booking personally.</p>
     <ul>
       <li><b>Hours</b> — Open 7 days, 10:00 AM – 9:00 PM</li>
       <li><b>Booking ahead</b> — You can book online up to 1 month in advance</li>
@@ -440,7 +446,7 @@
     <p class="sub">Lumina Head Spa &amp; Beauty · Maple</p>
     <div class="bk-layout">
   <div class="bk-main">
-    <div class="bk-crumbs" id="bkCrumbs"><button type="button" data-goto="1" class="on">Services</button><span>›</span><button type="button" data-goto="2">Time</button><span>›</span><button type="button" data-goto="3">Details</button><span>›</span><span>Confirm</span></div>
+    <div class="bk-crumbs" id="bkCrumbs"><button type="button" data-goto="1" class="on">Services</button><span>›</span><button type="button" data-goto="2">Time</button><span>›</span><button type="button" data-goto="3" id="crumbTher" hidden>Therapist</button><span id="crumbTherSep" hidden>›</span><button type="button" data-goto="3" id="crumbDetails">Details</button><span>›</span><span>Confirm</span></div>
     <div class="bk-panel" id="panelServices">
       <div class="pick-h">Choose your treatment(s)</div>
       <div class="bk-tabs" id="bkTabs"></div>
@@ -482,6 +488,12 @@
       <div class="pick-h" style="margin-top:24px">Pick a start time</div>
       <div id="times"></div>
       <p class="pick-note" style="margin-top:14px">Your treatments run one after another — you only pick the start time of the first one.</p>
+    </div>
+    <div class="bk-panel" id="panelTherapist" hidden>
+      <div class="pick-h">Choose your therapist</div>
+      <div class="th-grid" id="therapistCards"></div>
+      <p class="pick-note" id="therapistNote" style="margin-top:12px"></p>
+      <p class="pick-note">Not sure? Choose <b>No preference</b> — we will match you with the first available therapist.</p>
     </div>
     <div class="bk-panel" id="panelDetails" hidden>
       <div class="pick-h">Your details</div>
@@ -565,6 +577,8 @@
   var crumbs=[].slice.call(document.querySelectorAll('#bkCrumbs [data-goto]'));
   var picks=[], step=1;
   var liveMode=false, treatIds={}, availSet=null, availSeq=0;
+  var staffMode=false, staffTechs=[], selTech=0, staffByStart=null;
+  var stepDetails=3, stepConfirm=4;
   var selDay=null, selDayLabel='', selTime=null, selEnd=null, selStartMin=null, weekIdx=0;
   var today=new Date(); today.setHours(0,0,0,0);
   var lastDay=new Date(today); lastDay.setDate(today.getDate()+WINDOW_DAYS);
@@ -596,6 +610,7 @@
   /* ---------- helpers ---------- */
   function totalMin(){ return picks.reduce(function(a,r){return a+(parseInt(r.dataset.min,10)||0)},0); }
   function totalPrice(){ return picks.reduce(function(a,r){return a+(parseInt(r.dataset.price,10)||0)},0); }
+  function unitsNow(){ return picks.some(function(r){ return /for Two$/.test(r.dataset.name); })?2:1; }
   function fmtTime(mins){ var h=Math.floor(mins/60), m=mins%60, ap=h>=12?'PM':'AM', h12=h%12; if(h12===0)h12=12; return h12+':'+(m<10?'0':'')+m+' '+ap; }
   function fmtDur(mins){ var h=Math.floor(mins/60), m=mins%60; if(!h) return m+' min'; return h+' hr'+(h>1?'s':'')+(m?' '+m+' min':''); }
   function refreshBadges(){
@@ -625,24 +640,27 @@
     });
     railTotal.textContent='$'+totalPrice();
     railDur.textContent=picks.length? 'Total time: '+fmtDur(totalMin()) : '';
-    backB.style.visibility=(step>1&&step<4)?'visible':'hidden';
-    nextB.style.display=step<4?'':'none';
-    nextB.textContent=step===3?(liveMode?'Confirm My Booking':'Show My Booking Details'):'Next';
+    backB.style.visibility=(step>1&&step<stepConfirm)?'visible':'hidden';
+    nextB.style.display=step<stepConfirm?'':'none';
+    nextB.textContent=step===stepDetails?(liveMode?'Confirm My Booking':'Show My Booking Details'):'Next';
     crumbs.forEach(function(c){ c.classList.toggle('on', parseInt(c.dataset.goto,10)===step); });
     if(step===1) railHint.textContent=picks.length?'Looking good — tap Next to pick a date & time.':'Tap a treatment to add it. You can add up to '+MAX_PICKS+' in one visit.';
     else if(step===2) railHint.textContent=selTime?'Tap Next to leave your details.':'Pick a day, then a start time — your treatments run one after another.';
-    else if(step===3) railHint.textContent='We confirm every booking personally.';
+    else if(step===3 && staffMode) railHint.textContent='No preference is the easy choice — or tap a name to book with that therapist.';
+    else if(step===stepDetails) railHint.textContent='We confirm every booking personally.';
     else railHint.textContent='';
   }
   function goStep(n){
     step=n;
     Object.keys(panels).forEach(function(k){ panels[k].hidden=parseInt(k,10)!==n; });
+    if(n===3 && staffMode) renderTherapists();
     renderRail();
   }
   nextB.addEventListener('click',function(){
     if(step===1){ if(!picks.length){ railHint.textContent='Please choose at least one treatment first.'; return; } goStep(2); }
     else if(step===2){ if(!selTime){ railHint.textContent='Please pick a start time first.'; return; } goStep(3); }
-    else if(step===3){ doConfirm(); }
+    else if(staffMode && step===3){ goStep(stepDetails); }
+    else if(step===stepDetails){ doConfirm(); }
   });
   backB.addEventListener('click',function(){ if(step>1) goStep(step-1); });
   crumbs.forEach(function(c){
@@ -650,13 +668,14 @@
       var g=parseInt(c.dataset.goto,10);
       if(g===1) goStep(1);
       else if(g===2 && picks.length) goStep(2);
-      else if(g===3 && selTime) goStep(3);
+      else if(g>=3 && selTime) goStep(g);
     });
   });
 
   /* ---------- picking treatments ---------- */
   function onPickChange(){
     selTime=null; selEnd=null; selStartMin=null;
+    selTech=0; staffByStart=null;
     refreshBadges();
     if(selDay) buildTimes();
     refreshAvail();
@@ -756,6 +775,7 @@
           b.addEventListener('click',function(){
             timesEl.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel')});
             b.classList.add('sel'); selTime=fmtTime(st); selEnd=fmtTime(st+dur); selStartMin=st;
+            if(staffMode) renderTherapists();
             renderRail();
           });
           wrap.appendChild(b);
@@ -793,7 +813,7 @@
     document.getElementById('confirmText').textContent =
       nm+' · '+parts.join(' · ')+' on '+selDayLabel+'. We have your number as '+ph+(em? ', and your email as '+em : '')+'.'+(nt? ' Your note: '+nt : '');
     box.style.display='block';
-    goStep(4);
+    goStep(stepConfirm);
   }
 
 
@@ -802,16 +822,46 @@
   function refreshAvail(){
     if(!liveMode||!selDay) return;
     var dur=totalMin()||60;
-    var units=picks.some(function(r){ return /for Two$/.test(r.dataset.name); })?2:1;
+    var units=unitsNow();
     var seq=++availSeq;
-    fetch('api/public.php?action=availability&date='+isoOf(selDay)+'&minutes='+dur+'&units='+units)
+    fetch('api/public.php?action=availability&date='+isoOf(selDay)+'&minutes='+dur+'&units='+units+(staffMode? '&techId='+selTech : ''))
       .then(function(r){ return r.json(); })
       .then(function(j){
         if(seq!==availSeq||!j.ok) return;
         availSet=new Set(j.starts);
+        if(staffMode) staffByStart=j.byStart||null;
         if(selStartMin!==null && !availSet.has(selStartMin)){ selTime=null; selEnd=null; selStartMin=null; }
-        buildTimes(); renderRail();
+        buildTimes(); if(staffMode) renderTherapists(); renderRail();
       }).catch(function(){});
+  }
+  /* ---------- therapist step (staff mode only) ---------- */
+  function renderTherapists(){
+    if(!staffMode) return;
+    var wrap=document.getElementById('therapistCards'); if(!wrap) return;
+    wrap.innerHTML='';
+    var units=unitsNow();
+    var hasData=!!staffByStart && selStartMin!==null;
+    var freeList=hasData? (staffByStart[String(selStartMin)]||null) : null;
+    function card(id, name, sub, avail){
+      var b=document.createElement('button'); b.type='button';
+      b.className='th-card'+(selTech===id?' sel':'')+(avail?'':' off');
+      var n1=document.createElement('span'); n1.className='th-n'; n1.textContent=name;
+      var n2=document.createElement('span'); n2.className='th-s'; n2.textContent=sub;
+      b.appendChild(n1); b.appendChild(n2);
+      if(!avail) b.disabled=true;
+      b.addEventListener('click',function(){ selTech=id; renderTherapists(); refreshAvail(); renderRail(); });
+      wrap.appendChild(b);
+    }
+    card(0, 'No preference', selTime? 'First available therapist' : 'Pick a time first', true);
+    staffTechs.forEach(function(t){
+      var avail=true, sub='';
+      if(selStartMin===null) sub='Pick a time first';
+      else if(hasData && !(freeList && freeList.indexOf(t.id)>=0 && (units<2 || freeList.length>=2))){ avail=false; sub='Not available at this time'; }
+      else sub='Available at '+selTime;
+      card(t.id, t.name, sub, avail);
+    });
+    var note=document.getElementById('therapistNote');
+    if(note) note.textContent = units>=2? 'Your treatment is for two guests — a second therapist will be assigned as well.' : '';
   }
   function syncTreatments(){
     fetch('api/public.php?action=treatments').then(function(r){ return r.json(); }).then(function(j){
@@ -829,27 +879,38 @@
   }
   function submitBooking(nm, ph, em, nt){
     nextB.disabled=true; nextB.textContent='Booking\u2026';
+    var payload={name:nm, phone:ph, email:em, note:nt, date:isoOf(selDay), start:selStartMin,
+      items: picks.map(function(r){ return treatIds[r.dataset.name]; }).filter(function(x){ return x; })};
+    if(staffMode) payload.techId=selTech;
     fetch('api/public.php?action=book', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({name:nm, phone:ph, email:em, note:nt, date:isoOf(selDay), start:selStartMin,
-        items: picks.map(function(r){ return treatIds[r.dataset.name]; }).filter(function(x){ return x; })})})
+      body: JSON.stringify(payload)})
       .then(function(r){ return r.json(); })
       .then(function(j){
         nextB.disabled=false;
         if(!j.ok){ errEl.textContent=j.error||'Something went wrong — please try again, or call us at 647-368-8148.'; errEl.style.display='block'; refreshAvail(); return; }
         document.getElementById('confirmText').textContent =
-          nm+' \u00B7 '+j.summary.lines.join(' \u00B7 ')+' on '+j.summary.dayLabel+'. Total $'+j.summary.totalPrice+'. We have your number as '+ph+(em? ', and your email as '+em : '')+'.'+(nt? ' Your note: '+nt : '');
+          nm+' \u00B7 '+j.summary.lines.join(' \u00B7 ')+(j.summary.withTechs? ' \u00B7 With '+j.summary.withTechs : '')+' on '+j.summary.dayLabel+'. Total $'+j.summary.totalPrice+'. We have your number as '+ph+(em? ', and your email as '+em : '')+'.'+(nt? ' Your note: '+nt : '');
         document.getElementById('callStep').style.display='none';
         var ok=document.getElementById('bookedOk'); ok.style.display='block';
         document.getElementById('okText').textContent='\u2713 Request received — your reference is '+j.ref+'. The shop will confirm your booking shortly.'+(em? ' A confirmation email is on its way to '+em+', with a private link to change or cancel.' : ' Use the button below to change or cancel your booking.');
         document.getElementById('manageLink').href=j.manageUrl;
         box.style.display='block';
-        goStep(4);
+        goStep(stepConfirm);
       })
       .catch(function(){ nextB.disabled=false; renderRail(); errEl.textContent='We could not reach the booking system — please try again, or call us at 647-368-8148.'; errEl.style.display='block'; });
   }
   if(window.fetch) fetch('api/public.php?action=health').then(function(r){ return r.json(); }).then(function(j){
     if(j && j.live){
       liveMode=true;
+      if(j.mode==='staff'){
+        staffMode=true; staffTechs=j.techs||[];
+        stepDetails=4; stepConfirm=5;
+        panels={1:document.getElementById('panelServices'),2:document.getElementById('panelTime'),3:document.getElementById('panelTherapist'),4:document.getElementById('panelDetails'),5:document.getElementById('panelConfirm')};
+        var ct=document.getElementById('crumbTher'), cs=document.getElementById('crumbTherSep'), cd=document.getElementById('crumbDetails');
+        if(ct) ct.hidden=false; if(cs) cs.hidden=false; if(cd) cd.dataset.goto='4';
+        var intro=document.getElementById('bookIntro');
+        if(intro) intro.textContent='Choose your treatment and a time that suits you \u2014 then pick your therapist, or choose \u201cNo preference\u201d and we will assign one for you. We confirm every booking personally.';
+      }
       var note=document.getElementById('bkModeNote');
       if(note) note.textContent='Book right here — your request goes straight to the shop, and we email you a confirmation with a link to change or cancel.';
       syncTreatments(); refreshAvail(); renderRail();
