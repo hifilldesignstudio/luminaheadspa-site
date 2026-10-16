@@ -94,6 +94,10 @@
   #toasts{position:fixed;top:14px;right:14px;z-index:999;display:flex;flex-direction:column;gap:8px}
   .toast{background:#2b2118;color:#fdf8ef;padding:12px 16px;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.35);font-size:14px;line-height:1.45;cursor:pointer;max-width:330px;transition:opacity .4s}
   .toast.out{opacity:0}
+  .tmodal{position:fixed;inset:0;background:rgba(43,33,24,.5);z-index:300;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:16px 10px}
+  .tmodal-box{background:#fffdf8;border-radius:16px;max-width:660px;width:100%;padding:18px;box-shadow:0 22px 60px rgba(0,0,0,.35)}
+  .tmodal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+  .tmodal-head b{font-size:17px}
   #printSheet{display:none}
   @media print{ #login,#app{display:none!important} #printSheet{display:block!important;font-family:Georgia,serif;color:#000} }
 </style>
@@ -192,14 +196,14 @@
           <button class="daypop-x" id="teamDayX" aria-label="Close">×</button>
           <h3 id="teamDayTitle" style="margin-bottom:8px"></h3>
           <div id="teamDayBody"></div>
-          <p style="color:var(--muted);font-size:13px;margin-top:12px">To change a day, open "Roster &amp; schedule" under that technician's name and tap the day.</p>
+          <p style="color:var(--muted);font-size:13px;margin-top:12px">To change a day, open "Schedule" on that technician's card below and tap the day.</p>
         </div>
       </div>
       <div class="card">
         <div id="techList"></div>
-        <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div><label>Email (receives booking notifications)</label><input id="newTechEmail" type="email"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
+        <div style="margin-top:12px"><button class="btn" id="addTechBtn">+ Add technician</button></div>
         <p class="msg" id="techMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Guests can pick a technician when they book, or choose "No preference" — those bookings arrive unassigned, and you assign a technician when you confirm (the booking card suggests one). Simultaneous guests are automatic: one guest at a time per active technician. A technician with an email on file is notified about their own bookings — and the shop's main email always receives everything. The rosters you set with "Roster &amp; schedule" decide who can be booked when.</p>
+        <p style="color:var(--muted);font-size:13px">Guests can pick a technician when they book, or choose "No preference" — those bookings arrive unassigned, and you assign a technician when you confirm (the booking card suggests one). Simultaneous guests are automatic: one guest at a time per active technician. A technician with an email on file is notified about their own bookings — and the shop's main email always receives everything. The rosters you set with "Schedule" decide who can be booked when.</p>
       </div>
     </section>
 
@@ -229,6 +233,7 @@
 </div>
 
 <div id="printSheet"></div>
+<div id="techModal" class="tmodal"><div class="tmodal-box"><div class="tmodal-head"><b id="tmTitle"></b><button type="button" class="act" id="tmClose">✕ Close</button></div><div id="tmBody"></div></div></div>
 <script>
 var API = '../api/admin.php', PUB = '../api/public.php';
 function $(id){ return document.getElementById(id); }
@@ -568,18 +573,49 @@ function syncStaffUI(){
   var w = $('mTechWrap'); if(w) w.classList.toggle('hidden', !STAFFMODE);
   fillTechSelects();
 }
+/* ---------- technician modal (edit / schedule / day bookings) ---------- */
+function openTechModal(title){
+  $('tmTitle').textContent = title;
+  $('techModal').style.display = 'flex';
+}
+function closeTechModal(){
+  $('techModal').style.display = 'none';
+  $('tmBody').innerHTML = '';
+}
+function openTechEdit(id){
+  var t = id? TECHLIST.find(function(x){ return String(x.id)===String(id); }) : null;
+  $('tmBody').innerHTML = '<label>Name</label><input id="teName" value="'+(t? esc(t.name) : '')+'">'
+    + '<label style="display:block;margin-top:10px">Email for notifications</label><input id="teEmail" type="email" value="'+(t? esc(t.email||'') : '')+'">'
+    + (t? '<label style="display:block;margin-top:12px"><input type="checkbox" id="teActive" '+(t.active==1?'checked':'')+'> Active (can be booked)</label>' : '')
+    + '<div style="margin-top:14px"><button class="btn" id="teSave">'+(t? 'Save changes' : 'Add technician')+'</button> <span class="msg" id="teMsg"></span></div>';
+  openTechModal(t? ('Edit — ' + t.name) : 'Add technician');
+  $('teSave').addEventListener('click', function(){
+    var name = $('teName').value.trim();
+    if(!name){ $('teMsg').textContent = 'Name required'; return; }
+    var body = {id: t? t.id : 0, name: name, email: $('teEmail').value.trim()};
+    if(t) body.active = $('teActive').checked;
+    api('technician_save', {method:'POST', body:body}).then(function(j){
+      if(j && j.ok){ closeTechModal(); $('techMsg').textContent = '✓ Saved'; loadTechs(); }
+      else $('teMsg').textContent = (j && j.error) || 'Error';
+    });
+  });
+}
+function openTechPanel(id, kind){
+  var t = TECHLIST.find(function(x){ return String(x.id)===String(id); });
+  if(!t) return;
+  $('tmBody').innerHTML = '<div id="tmpPanel"></div>';
+  openTechModal((kind==='sched'? 'Schedule — ' : 'Day bookings — ') + t.name);
+  if(kind==='sched') buildSchedPanel(id, $('tmpPanel')); else buildDayPanel(id, $('tmpPanel'));
+}
+
 function loadTechs(){
   api('technicians').then(function(j){
     TECHLIST = j.technicians||[];
     $('techList').innerHTML = TECHLIST.map(function(t){
-      return '<div class="row" style="margin-bottom:8px"><div><input value="'+esc(t.name)+'" data-tech="'+t.id+'"></div>'
-        + '<div><input type="email" placeholder="Email for notifications" value="'+esc(t.email||'')+'" data-techemail="'+t.id+'"></div>'
-        + '<div style="flex:0"><label style="display:inline"><input type="checkbox" data-techon="'+t.id+'" '+(t.active==1?'checked':'')+'> Active</label></div>'
-        + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div>'
-        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Roster &amp; schedule</button></div>'
-        + '<div style="flex:0"><button class="act dayToggle" data-id="'+t.id+'">Day bookings</button></div></div>'
-        + '<div id="sched-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>'
-        + '<div id="daybk-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>';
+      return '<div class="card techcard" style="margin-bottom:10px"><div class="bk-head"><b>'+esc(t.name)+'</b>'
+        + (t.active==1? '<span class="badge confirmed">Active</span>' : '<span class="badge done">Inactive</span>') + '</div>'
+        + '<div style="color:var(--muted)">'+(t.email? esc(t.email) : 'No email on file')+'</div>'
+        + '<div style="margin-top:8px"><button class="act techEdit" data-id="'+t.id+'">Edit</button> <button class="act techSched" data-id="'+t.id+'">Schedule</button> <button class="act techDay" data-id="'+t.id+'">Day bookings</button> <button class="act cancel techDel" data-id="'+t.id+'">Delete</button></div></div>';
     }).join('') || '<p style="color:var(--muted)">No technicians yet.</p>';
     fillTechSelects();
     loadTeamMonth();
@@ -587,8 +623,8 @@ function loadTechs(){
 }
 /* ---------- per-technician day bookings (view / print / email) ---------- */
 var DAYBK = {};
-function buildDayPanel(id){
-  var el = $('daybk-'+id); if(!el) return;
+function buildDayPanel(id, el){
+  if(!el) return;
   el.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Day bookings — pick any day</div>'
     + '<div class="row" style="align-items:center;margin-bottom:8px"><div style="flex:0"><button type="button" class="act dayPrev" data-id="'+id+'">‹ Prev day</button></div>'
     + '<div style="flex:0"><input type="date" class="dayDate" data-id="'+id+'" value="'+todayStr()+'"></div>'
@@ -647,9 +683,9 @@ function techSchedMap(t){
    usual weekly hours collapsed underneath. Hand-set days (custom hours or
    a day off for one date) always win over the weekly hours — that is the
    resolution order the booking engine uses too. */
-function buildSchedPanel(id){
+function buildSchedPanel(id, panel){
   var t = TECHLIST.find(function(x){ return String(x.id)===String(id); });
-  var panel = $('sched-'+id); if(!panel || !t) return;
+  if(!panel || !t) return;
   var map = techSchedMap(t);
   var h = '<div style="font-weight:600;margin-bottom:6px">Roster — tap a day to set that day\'s hours, or mark it off</div>'
     + '<div class="row" style="margin-bottom:10px"><button class="act rPrev" data-id="'+id+'">‹ Prev</button><b id="rTitle-'+id+'" style="text-align:center"></b><button class="act rNext" data-id="'+id+'">Next ›</button></div>'
@@ -865,19 +901,19 @@ function saveSched(id){
     if($('soff-'+id+'-'+d).checked) arr.push(null);
     else arr.push([parseInt($('ss-'+id+'-'+d).value,10), parseInt($('se-'+id+'-'+d).value,10)]);
   }
-  var body = {id: parseInt(id,10), name: document.querySelector('input[data-tech="'+id+'"]').value,
-              email: document.querySelector('input[data-techemail="'+id+'"]').value,
-              active: document.querySelector('input[data-techon="'+id+'"]').checked, sched: JSON.stringify(arr)};
+  var tRec = TECHLIST.find(function(x){ return String(x.id)===String(id); });
+  var body = {id: parseInt(id,10), name: tRec? tRec.name : '',
+              email: tRec? (tRec.email||'') : '',
+              active: tRec? (tRec.active==1) : true, sched: JSON.stringify(arr)};
   api('technician_save', {method:'POST', body: body}).then(function(j){
     var m = $('schedMsg-'+id); if(m) m.textContent = j.ok? '✓ Schedule saved' : (j.error||'Error');
     if(j.ok){ var t = TECHLIST.find(function(x){ return String(x.id)===String(id); }); if(t) t.sched = JSON.stringify(arr); $('techMsg').textContent='✓ Saved'; if(ROSTER[id]) loadRosterMonth(id); loadTeamMonth(); }
   });
 }
-$('addTech').addEventListener('click', function(){
-  if(!$('newTech').value.trim()) return;
-  api('technician_save', {method:'POST', body:{id:0, name: $('newTech').value, email: $('newTechEmail').value}}).then(function(j){ if(j.ok){ $('newTech').value=''; $('newTechEmail').value=''; $('techMsg').textContent='✓ Added'; loadTechs(); } else $('techMsg').textContent = j.error||'Error'; });
-});
-$('techList').addEventListener('click', function(e){
+$('addTechBtn').addEventListener('click', function(){ openTechEdit(0); });
+$('tmClose').addEventListener('click', closeTechModal);
+$('techModal').addEventListener('click', function(e){ if(e.target === $('techModal')) closeTechModal(); });
+document.body.addEventListener('click', function(e){
   var cl = e.target.classList;
   var dayEl = e.target.closest ? e.target.closest('.day[data-rday]') : null;
   if(dayEl){ openRosterDay(dayEl.dataset.tid, dayEl.dataset.rday); return; }
@@ -900,14 +936,20 @@ $('techList').addEventListener('click', function(e){
     renderRosterMonth(e.target.dataset.id);
     return;
   }
-  if(cl.contains('schedToggle')){
-    var panel = $('sched-'+e.target.dataset.id);
-    if(panel){ panel.classList.toggle('hidden'); if(!panel.dataset.built){ panel.dataset.built='1'; buildSchedPanel(e.target.dataset.id); } }
-    return;
-  }
-  if(cl.contains('dayToggle')){
-    var dpanel = $('daybk-'+e.target.dataset.id);
-    if(dpanel){ dpanel.classList.toggle('hidden'); if(!dpanel.dataset.built){ dpanel.dataset.built='1'; buildDayPanel(e.target.dataset.id); } }
+  if(cl.contains('techEdit')){ openTechEdit(parseInt(e.target.dataset.id,10)); return; }
+  if(cl.contains('techSched')){ openTechPanel(e.target.dataset.id, 'sched'); return; }
+  if(cl.contains('techDay')){ openTechPanel(e.target.dataset.id, 'day'); return; }
+  if(cl.contains('techDel')){
+    var delId = parseInt(e.target.dataset.id,10);
+    var delT = TECHLIST.find(function(x){ return x.id===delId; });
+    if(!confirm('Delete ' + (delT? delT.name : 'this technician') + '? If they have bookings on record they will be deactivated instead, so past records stay intact.')) return;
+    api('technician_delete', {method:'POST', body:{id: delId}}).then(function(j){
+      if(j && j.ok){
+        if(j.mode==='deactivated') alert((delT? delT.name : 'That technician') + ' has bookings on record, so they were deactivated instead of deleted.');
+        $('techMsg').textContent = '✓ Done';
+        loadTechs();
+      } else alert((j && j.error) || 'Could not delete.');
+    });
     return;
   }
   if(cl.contains('dayPrev')){ shiftTechDay(e.target.dataset.id, -1); return; }
@@ -930,12 +972,6 @@ $('techList').addEventListener('click', function(e){
     api('tech_dayoff_remove', {method:'POST', body:{techId: parseInt(e.target.dataset.tid,10), date: e.target.dataset.d}}).then(function(){ loadOffList(e.target.dataset.tid); });
     return;
   }
-  if(!cl.contains('saveTech')) return;
-  var id = e.target.dataset.id;
-  var name = document.querySelector('input[data-tech="'+id+'"]').value;
-  var on = document.querySelector('input[data-techon="'+id+'"]').checked;
-  var em = document.querySelector('input[data-techemail="'+id+'"]').value;
-  api('technician_save', {method:'POST', body:{id: parseInt(id,10), name: name, active: on, email: em}}).then(function(){ $('techMsg').textContent='✓ Saved'; });
 });
 
 /* ---------- new-booking alerts (sound + popup while this page is open) ---------- */

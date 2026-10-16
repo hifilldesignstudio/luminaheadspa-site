@@ -366,6 +366,29 @@ if ($action === 'technician_save') {
     lumina_json(['ok' => true]);
 }
 
+if ($action === 'technician_delete') {
+    /* Deleting a technician who already has bookings would break those
+       records (monthly report names, booking cards), so in that case the
+       technician is deactivated instead — only a booking-free record is
+       removed outright (e.g. a mistaken or test entry). */
+    lumina_ensure_modelb($pdo);
+    $in = body_json();
+    $id = (int)($in['id'] ?? 0);
+    $st = $pdo->prepare("SELECT id FROM technicians WHERE id = ?"); $st->execute([$id]);
+    if (!$st->fetch()) lumina_json(['ok' => false, 'error' => 'Technician not found'], 404);
+    $q = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE tech_id = ? OR tech2_id = ?");
+    $q->execute([$id, $id]);
+    $count = (int)$q->fetchColumn();
+    if ($count > 0) {
+        $pdo->prepare("UPDATE technicians SET active = 0 WHERE id = ?")->execute([$id]);
+        lumina_json(['ok' => true, 'mode' => 'deactivated', 'bookings' => $count]);
+    }
+    $pdo->prepare("DELETE FROM tech_days_off WHERE tech_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM tech_shifts WHERE tech_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM technicians WHERE id = ?")->execute([$id]);
+    lumina_json(['ok' => true, 'mode' => 'deleted']);
+}
+
 if ($action === 'settings') {
     lumina_json(['ok' => true, 'settings' => lumina_settings($pdo),
                  'blocked' => $pdo->query("SELECT * FROM blocked_dates ORDER BY d")->fetchAll()]);
