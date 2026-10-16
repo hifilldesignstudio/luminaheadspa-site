@@ -284,6 +284,18 @@
   .bk-layout{display:grid;grid-template-columns:1fr 330px;gap:28px;align-items:start;margin-top:6px}
   @media(max-width:960px){.bk-layout{grid-template-columns:1fr}.bk-rail{position:static}}
   .bk-rail{position:sticky;top:96px}
+  /* mobile sticky booking bar: summary + Back/Next stay in thumb reach */
+  .bk-mbar{display:none}
+  @media(max-width:960px){
+    .bk-mbar{display:flex;align-items:center;gap:10px;position:sticky;bottom:0;z-index:40;background:#fffdf9;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 -6px 24px rgba(90,75,45,.14);padding:10px 12px calc(10px + env(safe-area-inset-bottom));margin-top:16px}
+    .bk-mbar.off{display:none}
+    .bk-mbar .mb-info{flex:1;min-width:0}
+    .bk-mbar .mb-l1{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .bk-mbar .mb-l2{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .bk-mbar .mb-hint{font-size:12.5px;color:#b3402e;display:none}
+    .bk-mbar .btn{padding:11px 16px;white-space:nowrap}
+    #toTop{bottom:100px}
+  }
   .rail-card{border:1.5px solid var(--line);border-radius:16px;background:#fffdf9;padding:20px;box-shadow:0 12px 30px rgba(90,75,45,.07)}
   .rail-shop{font-weight:600;font-size:15px;margin-bottom:8px}
   .ri{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line)}
@@ -526,6 +538,11 @@
     <p class="rail-hint" id="railHint"></p>
   </div></aside>
 </div>
+  <div class="bk-mbar off" id="bkMbar">
+    <div class="mb-info"><div class="mb-l1" id="mbL1">No treatments chosen yet</div><div class="mb-l2" id="mbL2"></div><div class="mb-hint" id="mbHint"></div></div>
+    <button type="button" class="btn rail-back" id="mbBack" style="visibility:hidden">← Back</button>
+    <button type="button" class="btn rail-next" id="mbNext">Next</button>
+  </div>
     <p class="demo-note" id="bkModeNote">Online booking is launching very soon — for now, pick your treatment and time above, then call us to confirm.</p>
   </div>
 </div></section>
@@ -572,6 +589,8 @@
       railDur=document.getElementById('railDur'),
       railHint=document.getElementById('railHint'),
       backB=document.getElementById('bkBack'), nextB=document.getElementById('bkNext'),
+      mbar=document.getElementById('bkMbar'), mbL1=document.getElementById('mbL1'), mbL2=document.getElementById('mbL2'), mbHint=document.getElementById('mbHint'),
+      mbBack=document.getElementById('mbBack'), mbNext=document.getElementById('mbNext'),
       errEl=document.getElementById('err'), box=document.getElementById('confirmBox');
   var panels={1:document.getElementById('panelServices'),2:document.getElementById('panelTime'),3:document.getElementById('panelDetails'),4:document.getElementById('panelConfirm')};
   var crumbs=[].slice.call(document.querySelectorAll('#bkCrumbs [data-goto]'));
@@ -623,6 +642,21 @@
   }
 
   /* ---------- summary rail ---------- */
+  /* Mobile sticky bar mirrors the rail: totals + chosen day/time up top in
+     the bar, and Back/Next always in reach (they proxy the rail buttons). */
+  function syncMbar(){
+    if(!mbar) return;
+    mbar.classList.toggle('off', !liveMode || step>=stepConfirm);
+    if(!liveMode) return;
+    mbL1.textContent=picks.length? (picks.length+' treatment'+(picks.length>1?'s':'')+' · $'+totalPrice()+' · '+fmtDur(totalMin())) : 'No treatments chosen yet';
+    mbL2.textContent=selDay? (fmtShort.format(selDay)+(selStartMin!==null? ' · starts '+fmtTime(selStartMin) : '')) : '';
+    mbBack.style.visibility=backB.style.visibility;
+    mbNext.style.display=nextB.style.display;
+    mbNext.textContent=nextB.textContent;
+    var h=railHint.textContent||'';
+    mbHint.textContent=(h.indexOf('Please')===0)? h : '';
+    mbHint.style.display=mbHint.textContent? 'block':'none';
+  }
   function renderRail(){
     railItems.innerHTML='';
     if(!picks.length){
@@ -649,6 +683,7 @@
     else if(step===3 && staffMode) railHint.textContent='No preference is the easy choice — or tap a name to book with that therapist.';
     else if(step===stepDetails) railHint.textContent='We confirm every booking personally.';
     else railHint.textContent='';
+    syncMbar();
   }
   function goStep(n){
     step=n;
@@ -663,6 +698,8 @@
     else if(step===stepDetails){ doConfirm(); }
   });
   backB.addEventListener('click',function(){ if(step>1) goStep(step-1); });
+  mbBack.addEventListener('click',function(){ backB.click(); setTimeout(syncMbar,0); });
+  mbNext.addEventListener('click',function(){ nextB.click(); setTimeout(syncMbar,0); });
   crumbs.forEach(function(c){
     c.addEventListener('click',function(){
       var g=parseInt(c.dataset.goto,10);
