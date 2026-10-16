@@ -75,6 +75,15 @@ if ($action === 'booking_status') {
             "Hi {$b['name']},\n\nWe're sorry — your booking {$b['ref']} on " . lumina_fmt_day($b['date']) . " at " . lumina_fmt_time((int)$b['start_min']) .
             " has been cancelled by the shop. Please call us at 647-368-8148 and we will gladly rebook you.\n\nLumina Head Spa & Beauty");
     }
+    if ($status === 'confirmed' && $b['status'] !== 'confirmed' && $b['email'] !== '') {
+        $lines = lumina_booking_lines($pdo, (int)$b['id']);
+        $manageUrl = 'https://luminaheadspa.ca/manage/?t=' . $b['token'];
+        lumina_mail($b['email'], "Your Lumina booking is confirmed — {$b['ref']}",
+            "Hi {$b['name']},\n\nGood news — your booking is confirmed. We look forward to seeing you!\n\nReference: {$b['ref']}\nDate: " . lumina_fmt_day($b['date']) . "\n" .
+            implode("\n", $lines) . "\nTotal: $" . (int)$b['total_price'] .
+            "\n\nNeed to change or cancel? Use your private link (no login needed):\n$manageUrl" .
+            "\n\nLumina Head Spa & Beauty · 9505 Keele Street, Unit 1A, Maple · 647-368-8148");
+    }
     lumina_json(['ok' => true]);
 }
 
@@ -129,15 +138,19 @@ if ($action === 'treatment_save') {
 }
 
 if ($action === 'technicians') {
+    lumina_ensure_tech_email($pdo);
     lumina_json(['ok' => true, 'technicians' => $pdo->query("SELECT * FROM technicians ORDER BY sort, id")->fetchAll()]);
 }
 if ($action === 'technician_save') {
+    lumina_ensure_tech_email($pdo);
     $in = body_json();
     $id = (int)($in['id'] ?? 0);
     $name = trim((string)($in['name'] ?? ''));
+    $email = trim((string)($in['email'] ?? ''));
     if ($name === '') lumina_json(['ok' => false, 'error' => 'Name required'], 422);
-    if ($id) $pdo->prepare("UPDATE technicians SET name=?, active=? WHERE id=?")->execute([$name, !empty($in['active']) ? 1 : 0, $id]);
-    else $pdo->prepare("INSERT INTO technicians (name, active) VALUES (?, 1)")->execute([$name]);
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) lumina_json(['ok' => false, 'error' => 'That email looks incomplete — please check it, or leave it blank.'], 422);
+    if ($id) $pdo->prepare("UPDATE technicians SET name=?, email=?, active=? WHERE id=?")->execute([$name, $email, !empty($in['active']) ? 1 : 0, $id]);
+    else $pdo->prepare("INSERT INTO technicians (name, email, active) VALUES (?, ?, 1)")->execute([$name, $email]);
     lumina_json(['ok' => true]);
 }
 

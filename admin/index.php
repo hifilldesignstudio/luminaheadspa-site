@@ -130,9 +130,9 @@
     <section id="tab-techs" class="hidden">
       <div class="card">
         <div id="techList"></div>
-        <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
+        <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div><label>Email (receives booking notifications)</label><input id="newTechEmail" type="email"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
         <p class="msg" id="techMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings.</p>
+        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them.</p>
       </div>
     </section>
 
@@ -310,6 +310,7 @@ function loadTechs(){
   api('technicians').then(function(j){
     $('techList').innerHTML = (j.technicians||[]).map(function(t){
       return '<div class="row" style="margin-bottom:8px"><div><input value="'+esc(t.name)+'" data-tech="'+t.id+'"></div>'
+        + '<div><input type="email" placeholder="Email for notifications" value="'+esc(t.email||'')+'" data-techemail="'+t.id+'"></div>'
         + '<div style="flex:0"><label style="display:inline"><input type="checkbox" data-techon="'+t.id+'" '+(t.active==1?'checked':'')+'> Active</label></div>'
         + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div></div>';
     }).join('') || '<p style="color:var(--muted)">No technicians yet.</p>';
@@ -317,14 +318,15 @@ function loadTechs(){
 }
 $('addTech').addEventListener('click', function(){
   if(!$('newTech').value.trim()) return;
-  api('technician_save', {method:'POST', body:{id:0, name: $('newTech').value}}).then(function(){ $('newTech').value=''; $('techMsg').textContent='✓ Added'; loadTechs(); });
+  api('technician_save', {method:'POST', body:{id:0, name: $('newTech').value, email: $('newTechEmail').value}}).then(function(j){ if(j.ok){ $('newTech').value=''; $('newTechEmail').value=''; $('techMsg').textContent='✓ Added'; loadTechs(); } else $('techMsg').textContent = j.error||'Error'; });
 });
 $('techList').addEventListener('click', function(e){
   if(!e.target.classList.contains('saveTech')) return;
   var id = e.target.dataset.id;
   var name = document.querySelector('input[data-tech="'+id+'"]').value;
   var on = document.querySelector('input[data-techon="'+id+'"]').checked;
-  api('technician_save', {method:'POST', body:{id: parseInt(id,10), name: name, active: on}}).then(function(){ $('techMsg').textContent='✓ Saved'; });
+  var em = document.querySelector('input[data-techemail="'+id+'"]').value;
+  api('technician_save', {method:'POST', body:{id: parseInt(id,10), name: name, active: on, email: em}}).then(function(){ $('techMsg').textContent='✓ Saved'; });
 });
 
 /* ---------- settings ---------- */

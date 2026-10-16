@@ -113,11 +113,23 @@ function lumina_mail($to, $subject, $body, $replyTo = null) {
     return @mail($to, $subject, $body, $headers);
 }
 
-/* Shop notifications: every address in the admin 'notify_emails' setting
-   (comma-separated), falling back to the configured shop email. */
+/* Adds the technicians.email column on installs created before it existed. */
+function lumina_ensure_tech_email($pdo) {
+    static $done = false;
+    if ($done || !$pdo) return;
+    $done = true;
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM technicians LIKE 'email'")->fetch();
+        if (!$col) $pdo->exec("ALTER TABLE technicians ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''");
+    } catch (Exception $e) { /* table may not exist yet */ }
+}
+
+/* Shop notifications: the shop's main email always receives them, plus any
+   extra addresses from the admin 'notify_emails' setting, plus every active
+   technician who has an email on file. */
 function lumina_notify($pdo, $subject, $body, $replyTo = null) {
     $cfg = lumina_config();
-    $list = [];
+    $list = [ ($cfg && !empty($cfg['shop_email'])) ? $cfg['shop_email'] : 'info@luminaheadspa.ca' ];
     if ($pdo) {
         $raw = '';
         try { $set = lumina_settings($pdo); $raw = trim((string)($set['notify_emails'] ?? '')); } catch (Exception $e) { $raw = ''; }
@@ -127,8 +139,14 @@ function lumina_notify($pdo, $subject, $body, $replyTo = null) {
                 if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
             }
         }
+        lumina_ensure_tech_email($pdo);
+        try {
+            foreach ($pdo->query("SELECT email FROM technicians WHERE active = 1 AND email <> ''")->fetchAll() as $t) {
+                $a = trim((string)$t['email']);
+                if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $list[] = $a;
+            }
+        } catch (Exception $e) { /* technicians table not ready */ }
     }
-    if (!$list) $list = [ ($cfg && !empty($cfg['shop_email'])) ? $cfg['shop_email'] : 'info@luminaheadspa.ca' ];
     foreach (array_unique($list) as $to) lumina_mail($to, $subject, $body, $replyTo);
 }
 

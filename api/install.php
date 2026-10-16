@@ -33,6 +33,7 @@ $pdo->exec("CREATE TABLE treatments (
 $pdo->exec("CREATE TABLE technicians (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
+  email VARCHAR(190) NOT NULL DEFAULT '',
   active TINYINT NOT NULL DEFAULT 1,
   sort INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
