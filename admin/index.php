@@ -14,8 +14,11 @@
   header span{font-size:12.5px;color:#cbbfa4}
   header button{background:none;border:1px solid #57503f;color:#f3ead8;border-radius:8px;padding:6px 12px;cursor:pointer}
   .wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
-  .tab{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 18px;cursor:pointer;font-size:14.5px}
+  .tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:18px}
+  @media(max-width:700px){.tabs{grid-template-columns:repeat(3,1fr)} .tab{font-size:13.5px;padding:9px 4px}}
+  .tab{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 10px;cursor:pointer;font-size:14.5px;text-align:center;white-space:nowrap}
+  .bk-tools{display:flex;gap:8px;align-items:center}
+  @media(max-width:700px){.bk-tools{display:grid;grid-template-columns:1fr 1fr 1.35fr;flex:1 1 100%} .bk-tools .btn{padding:11px 4px;font-size:14px;white-space:nowrap}}
   .tab.on{background:#171410;color:#fdf6e3;border-color:#171410}
   .tab .n{background:var(--red);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;margin-left:6px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
@@ -96,7 +99,7 @@
       <div class="row" style="margin-bottom:6px">
         <div><label>Search</label><input id="q" placeholder="Name, phone or reference…"></div>
         <div><label>Date</label><input type="date" id="dayPick"></div>
-        <div style="flex:0"><button class="btn" id="upBtn">Upcoming</button> <button class="btn dark" id="todayBtn">Today</button> <button class="btn" id="alertBtn">🔔 Enable alerts</button></div>
+        <div class="bk-tools"><button class="btn" id="upBtn">Upcoming</button><button class="btn dark" id="todayBtn">Today</button><button class="btn" id="alertBtn">🔔 Enable alerts</button></div>
       </div>
       <h3 class="sec">Waiting for confirmation</h3>
       <div id="pendingList"></div>
