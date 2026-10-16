@@ -61,6 +61,14 @@
   #pCalGrid .day.sel{border-color:var(--brass-d);box-shadow:inset 0 0 0 2px var(--brass-d)}
   .pcal-key{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px}
   .pcal-key.p-many{background:#e2f2e6}.pcal-key.p-some{background:#f3f7ea}.pcal-key.p-few{background:#fdf0d5}.pcal-key.p-full{background:#f6e3e0}.pcal-key.p-grey{background:#efedea}
+  .cal .day.ovr{box-shadow:inset 0 0 0 2px var(--brass)}
+  .cal .day .ovr-dot{color:var(--brass-d);font-weight:700}
+  .cal .day.today{border-color:var(--brass-d);background:#fdf6ea}
+  #teamGrid .day{cursor:default;text-align:left;overflow:hidden}
+  #teamGrid .day .tnum{font-weight:700;font-size:12px;margin-bottom:2px}
+  #teamGrid .day .tline{font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #teamGrid .day .tline.off{color:var(--muted)}
+  .rday-ed{border:1px solid var(--line);border-radius:12px;background:#fffdf9;padding:12px 14px;margin:12px 0 4px}
   .msg{min-height:20px;color:var(--green);font-size:14px;margin-top:10px}
   .err{color:var(--red)}
   #login{max-width:380px;margin:70px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px}
@@ -150,10 +158,16 @@
 
     <section id="tab-techs" class="hidden">
       <div class="card">
+        <h3 style="margin-bottom:4px">Team availability</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Who works when, day by day — handy for part-timers with changing days. To change a day, open "Roster &amp; schedule" under that technician's name below and tap the day.</p>
+        <div class="row" style="margin-bottom:12px"><button class="act" id="teamPrev">‹ Prev</button><b id="teamTitle" style="text-align:center"></b><button class="act" id="teamNext">Next ›</button></div>
+        <div class="cal" id="teamGrid"></div>
+      </div>
+      <div class="card">
         <div id="techList"></div>
         <div class="row" style="margin-top:12px"><div><label>New technician name</label><input id="newTech"></div><div><label>Email (receives booking notifications)</label><input id="newTechEmail" type="email"></div><div style="flex:0"><button class="btn" id="addTech">Add</button></div></div>
         <p class="msg" id="techMsg"></p>
-        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them. In Per-technician booking mode (Hours &amp; Settings), guests can pick a therapist or choose "No preference", and the schedules you set with "Schedule &amp; days off" decide who can be booked when.</p>
+        <p style="color:var(--muted);font-size:13px">Guests never pick a technician — bookings are shared across the team. How many guests you can serve at the same time is set by "Simultaneous guests" in Hours &amp; Settings. A technician with an email on file receives every booking notification too — and the shop's main email always receives them. In Per-technician booking mode (Hours &amp; Settings), guests can pick a therapist or choose "No preference", and the rosters you set with "Roster &amp; schedule" decide who can be booked when.</p>
       </div>
     </section>
 
@@ -446,10 +460,11 @@ function loadTechs(){
         + '<div><input type="email" placeholder="Email for notifications" value="'+esc(t.email||'')+'" data-techemail="'+t.id+'"></div>'
         + '<div style="flex:0"><label style="display:inline"><input type="checkbox" data-techon="'+t.id+'" '+(t.active==1?'checked':'')+'> Active</label></div>'
         + '<div style="flex:0"><button class="act saveTech" data-id="'+t.id+'">Save</button></div>'
-        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Schedule &amp; days off</button></div></div>'
+        + '<div style="flex:0"><button class="act schedToggle" data-id="'+t.id+'">Roster &amp; schedule</button></div></div>'
         + '<div id="sched-'+t.id+'" class="hidden" style="border-top:1px dashed #ddd;padding:10px 0 4px;margin-bottom:10px"></div>';
     }).join('') || '<p style="color:var(--muted)">No technicians yet.</p>';
     fillTechSelects();
+    loadTeamMonth();
   });
 }
 var DAYNAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -457,29 +472,194 @@ function techSchedMap(t){
   var map = null; try{ map = t.sched? JSON.parse(t.sched) : null; }catch(e){}
   return map;
 }
+/* The roster panel: a month calendar of hand-set days on top, and the
+   usual weekly hours collapsed underneath. Hand-set days (custom hours or
+   a day off for one date) always win over the weekly hours — that is the
+   resolution order the booking engine uses too. */
 function buildSchedPanel(id){
   var t = TECHLIST.find(function(x){ return String(x.id)===String(id); });
   var panel = $('sched-'+id); if(!panel || !t) return;
   var map = techSchedMap(t);
-  var h = '<div style="font-weight:600;margin-bottom:6px">Weekly schedule</div>';
+  var h = '<div style="font-weight:600;margin-bottom:6px">Roster — tap a day to set that day\'s hours, or mark it off</div>'
+    + '<div class="row" style="margin-bottom:10px"><button class="act rPrev" data-id="'+id+'">‹ Prev</button><b id="rTitle-'+id+'" style="text-align:center"></b><button class="act rNext" data-id="'+id+'">Next ›</button></div>'
+    + '<div class="cal" id="rCal-'+id+'"></div>'
+    + '<div id="rEd-'+id+'"></div>'
+    + '<div style="font-weight:600;margin:16px 0 6px">Usual weekly hours <button type="button" class="act wkToggle" data-id="'+id+'" style="margin-left:6px">Show</button></div>'
+    + '<div id="wk-'+id+'" class="hidden">';
   for(var d=0; d<7; d++){
     var v = map? map[d] : [600,1260];
     h += '<div class="row" style="margin-bottom:6px;align-items:center"><div style="flex:0;min-width:92px">'+DAYNAMES[d]+'</div>'
       + '<div style="flex:0"><label style="display:inline"><input type="checkbox" id="soff-'+id+'-'+d+'"'+(map && !v?' checked':'')+'> Day off</label></div>'
       + '<div><select id="ss-'+id+'-'+d+'"></select></div><div><select id="se-'+id+'-'+d+'"></select></div></div>';
   }
-  h += '<button class="act saveSched" data-id="'+id+'">Save schedule</button> <span class="msg" id="schedMsg-'+id+'"></span>'
-    + '<div style="font-weight:600;margin:12px 0 6px">Days off (one-off dates)</div><div id="offList-'+id+'"></div>'
-    + '<div class="row"><div><input type="date" id="offDate-'+id+'"></div><div style="flex:0"><button class="act addOff" data-id="'+id+'">Add day off</button></div></div>'
-    + '<p style="color:var(--muted);font-size:12.5px;margin-top:6px">A technician with no schedule saved works the shop hours (10:00 AM \u2013 9:00 PM) every day. Schedules and days off only take effect in Per-technician booking mode.</p>';
+  h += '<button class="act saveSched" data-id="'+id+'">Save weekly hours</button> <span class="msg" id="schedMsg-'+id+'"></span>'
+    + '<p style="color:var(--muted);font-size:12.5px;margin-top:6px">The usual pattern for days you have not set by hand. A technician with no weekly hours saved works the shop hours (10:00 AM \u2013 9:00 PM) every day.</p></div>'
+    + '<p style="color:var(--muted);font-size:12.5px;margin-top:8px">Days with a gold ring were set by hand and override the usual weekly hours. Roster changes only take effect in Per-technician booking mode.</p>';
   panel.innerHTML = h;
   for(var d2=0; d2<7; d2++){
     var v2 = map? map[d2] : [600,1260];
     timeOptions($('ss-'+id+'-'+d2), v2? v2[0] : 600);
     timeOptions($('se-'+id+'-'+d2), v2? v2[1] : 1260);
   }
-  loadOffList(id);
+  if(!ROSTER[id]){ var dd = new Date(); ROSTER[id] = {y: dd.getFullYear(), m: dd.getMonth(), days: null, sel: null}; }
+  loadRosterMonth(id);
 }
+
+/* ---------- roster month editor (per technician) ---------- */
+var ROSTER = {};   /* techId -> {y, m, days: {dateStr: tech_month entry}, sel: dateStr|null} */
+function fmtMin(x){ var h = Math.floor(x/60), m = x % 60, h12 = h % 12 || 12; return m? h12+':'+String(m).padStart(2,'0') : ''+h12; }
+function fmtHrs(a, b){ return fmtMin(a)+'\u2013'+fmtMin(b); }
+function rosterDayCell(id, ds, dnum, entry){
+  var cls = 'day';
+  if(entry && (entry.source==='shift' || entry.source==='off_override')) cls += ' ovr';
+  if(ds === todayStr()) cls += ' today';
+  var st = ROSTER[id];
+  if(st && st.sel === ds) cls += ' sel';
+  var main = (!entry || entry.state === 'off') ? '<small>Off</small>' : '<small>'+fmtHrs(entry.start, entry.end)+'</small>';
+  return '<div class="'+cls+'" data-rday="'+ds+'" data-tid="'+id+'">'+dnum+(cls.indexOf('ovr')>=0? ' <span class="ovr-dot">\u2022</span>' : '')+main+'</div>';
+}
+function renderRosterMonth(id){
+  var st = ROSTER[id]; if(!st) return;
+  var title = $('rTitle-'+id); if(title) title.textContent = new Date(st.y, st.m, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
+  var grid = $('rCal-'+id); if(!grid) return;
+  var ym = st.y+'-'+String(st.m+1).padStart(2,'0');
+  var first = new Date(st.y, st.m, 1), lead = (first.getDay()+6)%7, dim = new Date(st.y, st.m+1, 0).getDate();
+  var h = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(d){ return '<div class="dow">'+d+'</div>'; }).join('');
+  for(var i=0;i<lead;i++) h += '<div></div>';
+  for(var n=1; n<=dim; n++){
+    var ds = ym+'-'+String(n).padStart(2,'0');
+    h += rosterDayCell(id, ds, n, st.days? st.days[ds] : null);
+  }
+  grid.innerHTML = h;
+}
+function loadRosterMonth(id){
+  var st = ROSTER[id]; if(!st) return Promise.resolve();
+  var ym = st.y+'-'+String(st.m+1).padStart(2,'0');
+  return api('tech_month', {qs:'&techId='+id+'&ym='+ym}).then(function(j){
+    if(!j.ok) return;
+    st.days = j.days||{};
+    renderRosterMonth(id);
+    if(st.sel) renderRosterEditor(id);
+  });
+}
+function openRosterDay(id, ds){
+  var st = ROSTER[id]; if(!st) return;
+  st.sel = ds;
+  renderRosterMonth(id);
+  renderRosterEditor(id);
+}
+function renderRosterEditor(id){
+  var box = $('rEd-'+id); if(!box) return;
+  var st = ROSTER[id];
+  if(!st || !st.sel){ box.innerHTML = ''; return; }
+  var ds = st.sel, entry = st.days? st.days[ds] : null;
+  var dObj = new Date(ds+'T12:00:00');
+  var label = dObj.toLocaleDateString('en-CA',{weekday:'long', month:'long', day:'numeric'});
+  var wdName = DAYNAMES[dObj.getDay()];
+  var isWork = !entry || entry.state !== 'off';
+  var sv = (entry && entry.start != null)? entry.start : 600;
+  var ev = (entry && entry.end != null)? entry.end : 1260;
+  var notes = {shift: 'Hours set by hand for this day.', off_override: 'Day off set by hand.', weekly: 'Following the usual weekly hours.', weekly_off: 'Usual weekly day off.', shop: 'Shop hours — no weekly hours saved.'};
+  box.innerHTML = '<div class="rday-ed"><div style="font-weight:600;margin-bottom:8px">'+label+'</div>'
+    + '<div style="margin-bottom:8px"><label style="display:inline;margin-right:14px"><input type="radio" name="rstate-'+id+'" value="work"'+(isWork?' checked':'')+'> Works</label>'
+    + '<label style="display:inline"><input type="radio" name="rstate-'+id+'" value="off"'+(!isWork?' checked':'')+'> Day off</label>'
+    + (entry && notes[entry.source]? ' <span style="color:var(--muted);font-size:12.5px">'+notes[entry.source]+'</span>' : '') + '</div>'
+    + '<div class="row" style="margin-bottom:10px"><div><label>Starts</label><select id="rStart-'+id+'"></select></div><div><label>Ends</label><select id="rEnd-'+id+'"></select></div></div>'
+    + '<button class="act dSave" data-id="'+id+'">Save day</button>'
+    + '<button class="act dWD" data-id="'+id+'">Apply to all '+wdName+'s this month</button>'
+    + '<button class="act dClear" data-id="'+id+'">Use usual hours</button>'
+    + '<button class="act dClose" data-id="'+id+'">Close</button>'
+    + ' <span class="msg" id="rMsg-'+id+'"></span></div>';
+  timeOptions($('rStart-'+id), sv);
+  timeOptions($('rEnd-'+id), ev);
+}
+function rosterEditorState(id){
+  var r = document.querySelector('input[name="rstate-'+id+'"]:checked');
+  return { off: !!(r && r.value === 'off'),
+           start: parseInt(($('rStart-'+id) || {}).value || '600', 10),
+           end: parseInt(($('rEnd-'+id) || {}).value || '1260', 10) };
+}
+function rosterDone(id, msg){
+  loadRosterMonth(id).then(function(){ var m = $('rMsg-'+id); if(m) m.textContent = msg; });
+  loadTeamMonth();
+}
+function rosterSaveDay(id){
+  var st = ROSTER[id]; if(!st || !st.sel) return;
+  var s = rosterEditorState(id), ds = st.sel;
+  if(s.off){
+    api('tech_shift_off', {method:'POST', body:{techId: parseInt(id,10), date: ds}}).then(function(){ rosterDone(id, '\u2713 Saved'); });
+  } else {
+    api('tech_shift_set', {method:'POST', body:{techId: parseInt(id,10), date: ds, start: s.start, end: s.end}}).then(function(j){
+      if(j && j.ok === false){ var m = $('rMsg-'+id); if(m) m.textContent = j.error || 'Could not save'; return; }
+      rosterDone(id, '\u2713 Saved');
+    });
+  }
+}
+function rosterApplyWeekday(id){
+  var st = ROSTER[id]; if(!st || !st.sel) return;
+  var s = rosterEditorState(id);
+  var target = new Date(st.sel+'T12:00:00').getDay();
+  var ym = st.y+'-'+String(st.m+1).padStart(2,'0');
+  var dim = new Date(st.y, st.m+1, 0).getDate();
+  var dates = [];
+  for(var n=1; n<=dim; n++){ var ds = ym+'-'+String(n).padStart(2,'0'); if(new Date(ds+'T12:00:00').getDay() === target) dates.push(ds); }
+  var chain = Promise.resolve(), count = 0;
+  dates.forEach(function(ds){
+    chain = chain.then(function(){
+      var p = s.off
+        ? api('tech_shift_off', {method:'POST', body:{techId: parseInt(id,10), date: ds}})
+        : api('tech_shift_set', {method:'POST', body:{techId: parseInt(id,10), date: ds, start: s.start, end: s.end}});
+      return p.then(function(){ count++; });
+    });
+  });
+  chain.then(function(){ rosterDone(id, '\u2713 Applied to '+count+' days'); });
+}
+function rosterClearDay(id){
+  var st = ROSTER[id]; if(!st || !st.sel) return;
+  api('tech_shift_clear', {method:'POST', body:{techId: parseInt(id,10), date: st.sel}}).then(function(){ rosterDone(id, '\u2713 Back to usual hours'); });
+}
+
+/* ---------- team availability overview ---------- */
+var teamY, teamM, teamData = null;
+(function(){ var d = new Date(); teamY = d.getFullYear(); teamM = d.getMonth(); })();
+function teamFirstName(name){ return String(name == null? '' : name).trim().split(/\s+/)[0]; }
+function renderTeamMonth(){
+  var title = $('teamTitle'); if(!title) return;
+  title.textContent = new Date(teamY, teamM, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
+  var grid = $('teamGrid'); if(!grid) return;
+  var ym = teamY+'-'+String(teamM+1).padStart(2,'0');
+  var fresh = teamData && teamData.ym === ym;
+  var techs = (teamData && teamData.techs) || [];
+  var days = fresh? (teamData.days || {}) : null;
+  var first = new Date(teamY, teamM, 1), lead = (first.getDay()+6)%7, dim = new Date(teamY, teamM+1, 0).getDate();
+  var h = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(d){ return '<div class="dow">'+d+'</div>'; }).join('');
+  for(var i=0;i<lead;i++) h += '<div></div>';
+  for(var n=1; n<=dim; n++){
+    var ds = ym+'-'+String(n).padStart(2,'0');
+    var cell = '<div class="day'+(ds === todayStr()? ' today' : '')+'"><div class="tnum">'+n+'</div>';
+    techs.forEach(function(t){
+      var w = days && days[ds]? days[ds][t.id] : undefined;
+      if(!days) cell += '<div class="tline">&nbsp;</div>';
+      else if(w) cell += '<div class="tline" title="'+esc(t.name)+'">'+esc(teamFirstName(t.name))+' '+fmtHrs(w[0], w[1])+'</div>';
+      else cell += '<div class="tline off" title="'+esc(t.name)+'">'+esc(teamFirstName(t.name))+' Off</div>';
+    });
+    h += cell + '</div>';
+  }
+  grid.innerHTML = h;
+}
+function loadTeamMonth(){
+  var ym = teamY+'-'+String(teamM+1).padStart(2,'0');
+  renderTeamMonth();
+  api('team_month', {qs:'&ym='+ym}).then(function(j){
+    if(!j.ok) return;
+    if(ym !== teamY+'-'+String(teamM+1).padStart(2,'0')) return; /* month moved on while loading */
+    teamData = j;
+    renderTeamMonth();
+  });
+}
+$('teamPrev').addEventListener('click', function(){ teamM--; if(teamM<0){ teamM=11; teamY--; } loadTeamMonth(); });
+$('teamNext').addEventListener('click', function(){ teamM++; if(teamM>11){ teamM=0; teamY++; } loadTeamMonth(); });
+document.querySelector('.tab[data-tab="techs"]').addEventListener('click', function(){ loadTeamMonth(); });
 function loadOffList(id){
   api('tech_days_off', {qs: '&techId='+id}).then(function(j){
     var el = $('offList-'+id); if(!el) return;
@@ -497,7 +677,7 @@ function saveSched(id){
               active: document.querySelector('input[data-techon="'+id+'"]').checked, sched: JSON.stringify(arr)};
   api('technician_save', {method:'POST', body: body}).then(function(j){
     var m = $('schedMsg-'+id); if(m) m.textContent = j.ok? '✓ Schedule saved' : (j.error||'Error');
-    if(j.ok){ var t = TECHLIST.find(function(x){ return String(x.id)===String(id); }); if(t) t.sched = JSON.stringify(arr); $('techMsg').textContent='✓ Saved'; }
+    if(j.ok){ var t = TECHLIST.find(function(x){ return String(x.id)===String(id); }); if(t) t.sched = JSON.stringify(arr); $('techMsg').textContent='✓ Saved'; if(ROSTER[id]) loadRosterMonth(id); loadTeamMonth(); }
   });
 }
 $('addTech').addEventListener('click', function(){
@@ -506,6 +686,27 @@ $('addTech').addEventListener('click', function(){
 });
 $('techList').addEventListener('click', function(e){
   var cl = e.target.classList;
+  var dayEl = e.target.closest ? e.target.closest('.day[data-rday]') : null;
+  if(dayEl){ openRosterDay(dayEl.dataset.tid, dayEl.dataset.rday); return; }
+  if(cl.contains('rPrev') || cl.contains('rNext')){
+    var rs = ROSTER[e.target.dataset.id];
+    if(rs){ rs.m += cl.contains('rPrev')? -1 : 1; if(rs.m<0){ rs.m=11; rs.y--; } if(rs.m>11){ rs.m=0; rs.y++; } rs.sel = null; var eb = $('rEd-'+e.target.dataset.id); if(eb) eb.innerHTML=''; loadRosterMonth(e.target.dataset.id); }
+    return;
+  }
+  if(cl.contains('wkToggle')){
+    var wk = $('wk-'+e.target.dataset.id);
+    if(wk){ wk.classList.toggle('hidden'); e.target.textContent = wk.classList.contains('hidden')? 'Show' : 'Hide'; }
+    return;
+  }
+  if(cl.contains('dSave')){ rosterSaveDay(e.target.dataset.id); return; }
+  if(cl.contains('dWD')){ rosterApplyWeekday(e.target.dataset.id); return; }
+  if(cl.contains('dClear')){ rosterClearDay(e.target.dataset.id); return; }
+  if(cl.contains('dClose')){
+    var cs = ROSTER[e.target.dataset.id]; if(cs) cs.sel = null;
+    var cb = $('rEd-'+e.target.dataset.id); if(cb) cb.innerHTML = '';
+    renderRosterMonth(e.target.dataset.id);
+    return;
+  }
   if(cl.contains('schedToggle')){
     var panel = $('sched-'+e.target.dataset.id);
     if(panel){ panel.classList.toggle('hidden'); if(!panel.dataset.built){ panel.dataset.built='1'; buildSchedPanel(e.target.dataset.id); } }

@@ -273,6 +273,140 @@ if ($action === 'tech_dayoff_remove') {
     try { $pdo->prepare("DELETE FROM tech_days_off WHERE tech_id = ? AND d = ?")->execute([$tid, $d]); } catch (Exception $e) {}
     lumina_json(['ok' => true]);
 }
+
+/* Roster month calendar — shared resolution for tech_month / team_month.
+   Resolves every day of $ym for the given tech rows (each carrying its
+   parsed schedMap, as lumina_techs returns) through lumina_tech_resolve —
+   the exact helper the booking engine uses — with the whole month's
+   per-date overrides loaded in two bulk range queries.
+   Returns [dateStr => [techId => resolution]] (resolution arrays as
+   lumina_tech_resolve returns them). */
+function roster_month_grid($pdo, $techRows, $ym) {
+    $set = lumina_settings($pdo);
+    $first = DateTime::createFromFormat('Y-m-d', $ym . '-01', lumina_tz());
+    $dim = (int)$first->format('t');
+    $lastDs = $ym . '-' . str_pad((string)$dim, 2, '0', STR_PAD_LEFT);
+    $offByDate = []; $shiftByDate = [];
+    try {
+        $st = $pdo->prepare("SELECT tech_id, d FROM tech_days_off WHERE d >= ? AND d <= ?");
+        $st->execute([$ym . '-01', $lastDs]);
+        foreach ($st->fetchAll() as $r) $offByDate[$r['d']][(int)$r['tech_id']] = true;
+    } catch (Exception $e) {}
+    try {
+        $st = $pdo->prepare("SELECT tech_id, d, start_min, end_min FROM tech_shifts WHERE d >= ? AND d <= ?");
+        $st->execute([$ym . '-01', $lastDs]);
+        foreach ($st->fetchAll() as $r) $shiftByDate[$r['d']][(int)$r['tech_id']] = [(int)$r['start_min'], (int)$r['end_min']];
+    } catch (Exception $e) {}
+    $grid = [];
+    for ($d = 1; $d <= $dim; $d++) {
+        $ds = $ym . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT);
+        $over = ['off' => $offByDate[$ds] ?? [], 'shifts' => $shiftByDate[$ds] ?? []];
+        foreach ($techRows as $t) $grid[$ds][(int)$t['id']] = lumina_tech_resolve($pdo, $t, $ds, $set, $over);
+    }
+    return $grid;
+}
+/* Validates a roster ?ym=YYYY-MM like phone_availability does (regex plus a
+   DateTime round-trip, so month 13 is rejected). Returns the first-of-month
+   DateTime, or exits with a 400. */
+function roster_month_first($ym) {
+    if (!preg_match('/^\d{4}-\d{2}$/', (string)$ym)) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
+    $first = DateTime::createFromFormat('Y-m-d', $ym . '-01', lumina_tz());
+    if (!$first || $first->format('Y-m') !== $ym) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
+    return $first;
+}
+/* Fetches one technician row by id (any active state), or null. */
+function roster_tech_row($pdo, $tid) {
+    $st = $pdo->prepare("SELECT * FROM technicians WHERE id = ?");
+    $st->execute([(int)$tid]);
+    $t = $st->fetch();
+    if (!$t) return null;
+    $t['schedMap'] = lumina_parse_sched(isset($t['sched']) ? $t['sched'] : null);
+    return $t;
+}
+if ($action === 'tech_month') {
+    /* One technician's resolved roster for a month — the per-tech month
+       editor in the admin. Resolution matches the booking engine exactly
+       (roster_month_grid -> lumina_tech_resolve). */
+    lumina_ensure_modelb($pdo);
+    $tid = (int)($_GET['techId'] ?? 0);
+    $ym = (string)($_GET['ym'] ?? '');
+    $first = roster_month_first($ym);
+    $t = $tid > 0 ? roster_tech_row($pdo, $tid) : null;
+    if (!$t) lumina_json(['ok' => false, 'error' => 'Unknown technician'], 404);
+    $grid = roster_month_grid($pdo, [$t], $ym);
+    $days = [];
+    foreach ($grid as $ds => $per) {
+        $r = $per[$tid];
+        $days[$ds] = ['state' => $r['state'], 'start' => $r['start'], 'end' => $r['end'], 'source' => $r['source']];
+    }
+    lumina_json(['ok' => true, 'tech' => ['id' => $tid, 'name' => $t['name']], 'ym' => $ym,
+                 'monthLabel' => $first->format('F Y'), 'days' => $days]);
+}
+if ($action === 'team_month') {
+    /* Team availability overview: every active technician x every day of
+       the month, resolved through the same code path as tech_month. */
+    lumina_ensure_modelb($pdo);
+    $ym = (string)($_GET['ym'] ?? '');
+    $first = roster_month_first($ym);
+    $techs = lumina_techs($pdo);
+    $grid = roster_month_grid($pdo, $techs, $ym);
+    $days = [];
+    foreach ($grid as $ds => $per) {
+        $row = [];
+        foreach ($per as $tid => $r) $row[$tid] = $r['state'] === 'work' ? [$r['start'], $r['end']] : null;
+        $days[$ds] = $row;
+    }
+    $list = [];
+    foreach ($techs as $t) $list[] = ['id' => (int)$t['id'], 'name' => $t['name']];
+    lumina_json(['ok' => true, 'ym' => $ym, 'monthLabel' => $first->format('F Y'), 'techs' => $list, 'days' => $days]);
+}
+if ($action === 'tech_shift_set') {
+    /* Set custom working hours for one tech on one date (an override).
+       Working beats a day off: any tech_days_off row for the date goes. */
+    lumina_ensure_modelb($pdo);
+    $in = body_json();
+    $tid = (int)($in['techId'] ?? 0); $d = trim((string)($in['date'] ?? ''));
+    $start = (int)($in['start'] ?? -1); $end = (int)($in['end'] ?? -1);
+    if ($tid <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) lumina_json(['ok' => false, 'error' => 'Pick a valid date.'], 422);
+    $dt = DateTime::createFromFormat('Y-m-d', $d, lumina_tz());
+    if (!$dt || $dt->format('Y-m-d') !== $d) lumina_json(['ok' => false, 'error' => 'Pick a valid date.'], 422);
+    if ($start < 0 || $end > 1440 || $end <= $start) lumina_json(['ok' => false, 'error' => 'End time must be after start time.'], 422);
+    if (!roster_tech_row($pdo, $tid)) lumina_json(['ok' => false, 'error' => 'Unknown technician'], 404);
+    try {
+        $pdo->prepare("INSERT INTO tech_shifts (tech_id, d, start_min, end_min) VALUES (?, ?, ?, ?)
+                       ON DUPLICATE KEY UPDATE start_min = VALUES(start_min), end_min = VALUES(end_min)")
+            ->execute([$tid, $d, $start, $end]);
+        $pdo->prepare("DELETE FROM tech_days_off WHERE tech_id = ? AND d = ?")->execute([$tid, $d]);
+    } catch (Exception $e) { lumina_json(['ok' => false, 'error' => 'Could not save that day.'], 500); }
+    lumina_json(['ok' => true]);
+}
+if ($action === 'tech_shift_off') {
+    /* Mark one tech off on one date (an override): the day-off row goes in
+       and any custom-hours row for the date comes out. */
+    lumina_ensure_modelb($pdo);
+    $in = body_json();
+    $tid = (int)($in['techId'] ?? 0); $d = trim((string)($in['date'] ?? ''));
+    if ($tid <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) lumina_json(['ok' => false, 'error' => 'Pick a valid date.'], 422);
+    if (!roster_tech_row($pdo, $tid)) lumina_json(['ok' => false, 'error' => 'Unknown technician'], 404);
+    try {
+        $pdo->prepare("INSERT IGNORE INTO tech_days_off (tech_id, d) VALUES (?, ?)")->execute([$tid, $d]);
+        $pdo->prepare("DELETE FROM tech_shifts WHERE tech_id = ? AND d = ?")->execute([$tid, $d]);
+    } catch (Exception $e) {}
+    lumina_json(['ok' => true]);
+}
+if ($action === 'tech_shift_clear') {
+    /* Remove BOTH overrides for one tech on one date — the day falls back
+       to the weekly template (or the shop hours). */
+    lumina_ensure_modelb($pdo);
+    $in = body_json();
+    $tid = (int)($in['techId'] ?? 0); $d = trim((string)($in['date'] ?? ''));
+    if ($tid <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) lumina_json(['ok' => false, 'error' => 'Pick a valid date.'], 422);
+    try {
+        $pdo->prepare("DELETE FROM tech_days_off WHERE tech_id = ? AND d = ?")->execute([$tid, $d]);
+        $pdo->prepare("DELETE FROM tech_shifts WHERE tech_id = ? AND d = ?")->execute([$tid, $d]);
+    } catch (Exception $e) {}
+    lumina_json(['ok' => true]);
+}
 if ($action === 'booking_assign') {
     /* Staff mode only: (re)assign the technician(s) on an existing booking.
        Revalidates feasibility under the booking lock and refuses

@@ -205,6 +205,12 @@ function lumina_ensure_modelb($pdo) {
         if (!$tbl) $pdo->exec("CREATE TABLE tech_days_off (
             tech_id INT NOT NULL, d DATE NOT NULL, PRIMARY KEY (tech_id, d)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $tbl = $pdo->query("SHOW TABLES LIKE 'tech_shifts'")->fetch();
+        if (!$tbl) $pdo->exec("CREATE TABLE tech_shifts (
+            tech_id INT NOT NULL, d DATE NOT NULL,
+            start_min INT NOT NULL, end_min INT NOT NULL,
+            PRIMARY KEY (tech_id, d)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Exception $e) { /* tables may not exist yet */ }
 }
 
@@ -271,14 +277,91 @@ function lumina_with_line($pdo, $b) {
     return $n ? "\nWith: " . implode(' & ', $n) : '';
 }
 
-/* The [startMin, endMin] window a tech works on a date, or null = day off. */
-function lumina_tech_window($tech, $dateStr, $set) {
+/* The weekly-template window for a date, BEFORE per-date overrides:
+   [startMin, endMin], or null when the weekly schedule marks it a day off.
+   A tech with no saved schedule gets the shop hours every day. */
+function lumina_tech_window_weekly($tech, $dateStr, $set) {
     $map = isset($tech['schedMap']) ? $tech['schedMap'] : null;
     if ($map === null) return [(int)$set['open_min'], (int)$set['close_min']];
     $d = DateTime::createFromFormat('Y-m-d', $dateStr, lumina_tz());
     if (!$d) return null;
     $v = $map[(int)$d->format('w')];
     return is_array($v) ? $v : null;
+}
+
+/* Per-date shift override (custom working hours) for one tech on one date:
+   [startMin, endMin], or null when there is no override row. */
+function lumina_tech_shift($pdo, $techId, $dateStr) {
+    if (!$pdo) return null;
+    try {
+        $st = $pdo->prepare("SELECT start_min, end_min FROM tech_shifts WHERE tech_id = ? AND d = ?");
+        $st->execute([(int)$techId, $dateStr]);
+        $r = $st->fetch();
+        if ($r) return [(int)$r['start_min'], (int)$r['end_min']];
+    } catch (Exception $e) { /* overrides table not ready */ }
+    return null;
+}
+
+/* Every per-date override for one date in two queries, for month loops:
+   ['off' => [techId => true], 'shifts' => [techId => [startMin, endMin]]].
+   Pass the result as $over to lumina_tech_resolve to resolve a whole day
+   (or a whole month, day by day) without per-tech queries. */
+function lumina_tech_overrides_for_date($pdo, $dateStr) {
+    $over = ['off' => [], 'shifts' => []];
+    if (!$pdo) return $over;
+    $over['off'] = lumina_tech_off_set($pdo, $dateStr);
+    try {
+        $st = $pdo->prepare("SELECT tech_id, start_min, end_min FROM tech_shifts WHERE d = ?");
+        $st->execute([$dateStr]);
+        foreach ($st->fetchAll() as $r) $over['shifts'][(int)$r['tech_id']] = [(int)$r['start_min'], (int)$r['end_min']];
+    } catch (Exception $e) { /* overrides table not ready */ }
+    return $over;
+}
+
+/* THE roster resolution — one tech, one date. Fixed order:
+     1. a one-off day off (tech_days_off) beats everything;
+     2. a per-date shift (tech_shifts) beats the weekly template;
+     3. the weekly template (technicians.sched) decides work / day off;
+     4. no weekly schedule at all -> the shop hours.
+   Returns ['state' => 'work'|'off', 'start' => min|null, 'end' => min|null,
+   'source' => 'off_override'|'shift'|'weekly'|'weekly_off'|'shop'].
+   $over may pre-supply the date's overrides (see
+   lumina_tech_overrides_for_date); when given it must be COMPLETE for the
+   date — the database is then not consulted for overrides. */
+function lumina_tech_resolve($pdo, $tech, $dateStr, $set, $over = null) {
+    $tid = (int)($tech['id'] ?? 0);
+    if ($over !== null) {
+        if (!empty($over['off'][$tid]))
+            return ['state' => 'off', 'start' => null, 'end' => null, 'source' => 'off_override'];
+    } elseif ($pdo) {
+        $off = lumina_tech_off_set($pdo, $dateStr);
+        if (isset($off[$tid]))
+            return ['state' => 'off', 'start' => null, 'end' => null, 'source' => 'off_override'];
+    }
+    if ($over !== null) {
+        if (isset($over['shifts'][$tid])) {
+            $sh = $over['shifts'][$tid];
+            return ['state' => 'work', 'start' => (int)$sh[0], 'end' => (int)$sh[1], 'source' => 'shift'];
+        }
+    } elseif ($pdo) {
+        $sh = lumina_tech_shift($pdo, $tid, $dateStr);
+        if ($sh !== null)
+            return ['state' => 'work', 'start' => $sh[0], 'end' => $sh[1], 'source' => 'shift'];
+    }
+    $w = lumina_tech_window_weekly($tech, $dateStr, $set);
+    if ($w === null) return ['state' => 'off', 'start' => null, 'end' => null, 'source' => 'weekly_off'];
+    $hasSched = isset($tech['schedMap']) && $tech['schedMap'] !== null;
+    return ['state' => 'work', 'start' => $w[0], 'end' => $w[1], 'source' => $hasSched ? 'weekly' : 'shop'];
+}
+
+/* The [startMin, endMin] window a tech works on a date, or null = day off.
+   Full roster resolution via lumina_tech_resolve (day-off override >
+   per-date shift > weekly template > shop hours), so every caller of this
+   helper — the staff availability engine, assignment, the phone calendar —
+   sees hand-set days automatically. */
+function lumina_tech_window($pdo, $tech, $dateStr, $set) {
+    $r = lumina_tech_resolve($pdo, $tech, $dateStr, $set);
+    return $r['state'] === 'work' ? [$r['start'], $r['end']] : null;
 }
 
 /* Set of tech ids with a one-off day off on $dateStr: [techId => true]. */
@@ -292,14 +375,14 @@ function lumina_tech_off_set($pdo, $dateStr) {
     return $out;
 }
 
-/* Can $tech personally cover [start, end) on $dateStr? Checks the weekly
-   schedule window, one-off days off, and overlaps with that tech's own
-   pending/confirmed bookings (as tech or as second tech). */
-function lumina_tech_free($pdo, $tech, $dateStr, $start, $end, $set, $offSet, $excludeId = 0, $ignoreOverlap = false) {
-    $w = lumina_tech_window($tech, $dateStr, $set);
+/* Can $tech personally cover [start, end) on $dateStr? Checks the tech's
+   resolved window for the date (weekly template + per-date overrides — a
+   one-off day off resolves to no window at all), and overlaps with that
+   tech's own pending/confirmed bookings (as tech or as second tech). */
+function lumina_tech_free($pdo, $tech, $dateStr, $start, $end, $set, $excludeId = 0, $ignoreOverlap = false) {
+    $w = lumina_tech_window($pdo, $tech, $dateStr, $set);
     if ($w === null) return false;
     if ($start < $w[0] || $end > $w[1]) return false;
-    if (isset($offSet[(int)$tech['id']])) return false;
     if ($ignoreOverlap) return true;
     $st = $pdo->prepare(
         "SELECT COUNT(*) c FROM bookings
@@ -338,13 +421,12 @@ function lumina_available_starts_staff($pdo, $dateStr, $totalMin, $units, $techI
     if (lumina_blocked($pdo, $dateStr)) return $empty;
     $nowMin = null;
     if ($dateStr === $today) { $n = lumina_now(); $nowMin = (int)$n->format('H') * 60 + (int)$n->format('i'); }
-    $offSet = lumina_tech_off_set($pdo, $dateStr);
     $starts = []; $byStart = [];
     for ($st = $open; $st + $totalMin <= $close; $st += $step) {
         if ($nowMin !== null && $st <= $nowMin) continue;
         $free = [];
         foreach ($techs as $t) {
-            if (lumina_tech_free($pdo, $t, $dateStr, $st, $st + $totalMin, $set, $offSet, $excludeId)) $free[] = (int)$t['id'];
+            if (lumina_tech_free($pdo, $t, $dateStr, $st, $st + $totalMin, $set, $excludeId)) $free[] = (int)$t['id'];
         }
         if ($techId > 0) $ok = in_array($techId, $free, true) && ($units < 2 || count($free) >= 2);
         else $ok = count($free) >= $units;
@@ -362,10 +444,9 @@ function lumina_staff_assign($pdo, $dateStr, $start, $totalMin, $units, $techId 
     $set = lumina_settings($pdo);
     $end = $start + $totalMin;
     $techs = lumina_techs($pdo);
-    $offSet = lumina_tech_off_set($pdo, $dateStr);
     $free = [];
     foreach ($techs as $t) {
-        if (lumina_tech_free($pdo, $t, $dateStr, $start, $end, $set, $offSet, $excludeId, $ignoreOverlap)) {
+        if (lumina_tech_free($pdo, $t, $dateStr, $start, $end, $set, $excludeId, $ignoreOverlap)) {
             $t['_load'] = lumina_tech_booked_min($pdo, (int)$t['id'], $dateStr, $excludeId);
             $free[] = $t;
         }

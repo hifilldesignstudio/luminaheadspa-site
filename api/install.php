@@ -43,6 +43,12 @@ $pdo->exec("CREATE TABLE tech_days_off (
   tech_id INT NOT NULL, d DATE NOT NULL, PRIMARY KEY (tech_id, d)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+$pdo->exec("CREATE TABLE tech_shifts (
+  tech_id INT NOT NULL, d DATE NOT NULL,
+  start_min INT NOT NULL, end_min INT NOT NULL,
+  PRIMARY KEY (tech_id, d)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 $pdo->exec("CREATE TABLE blocked_dates (
   d DATE PRIMARY KEY, note VARCHAR(160) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
