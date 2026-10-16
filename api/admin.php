@@ -84,13 +84,21 @@ if ($action === 'month_report') {
        download). Records are kept permanently; this is the shop's monthly
        bookkeeping view. Revenue/counts exclude cancelled bookings except
        where stated. */
+    $from = (string)($_GET['from'] ?? '');
+    $to = (string)($_GET['to'] ?? '');
+    $rangeMode = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to);
+    if ($rangeMode && $to < $from) { $tmp = $from; $from = $to; $to = $tmp; }
     $ym = $_GET['ym'] ?? lumina_now()->format('Y-m');
-    if (!preg_match('/^\d{4}-\d{2}$/', (string)$ym)) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
-    $like = $ym . '-%';
+    if (!$rangeMode && !preg_match('/^\d{4}-\d{2}$/', (string)$ym)) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
     $techMap = [];
     try { foreach ($pdo->query("SELECT id, name FROM technicians")->fetchAll() as $t) $techMap[(int)$t['id']] = $t['name']; } catch (Exception $e) {}
-    $st = $pdo->prepare("SELECT * FROM bookings WHERE date LIKE ? ORDER BY date, start_min LIMIT 1000");
-    $st->execute([$like]);
+    if ($rangeMode) {
+        $st = $pdo->prepare("SELECT * FROM bookings WHERE date BETWEEN ? AND ? ORDER BY date, start_min LIMIT 1000");
+        $st->execute([$from, $to]);
+    } else {
+        $st = $pdo->prepare("SELECT * FROM bookings WHERE date LIKE ? ORDER BY date, start_min LIMIT 1000");
+        $st->execute([$ym . '-%']);
+    }
     $rows = $st->fetchAll();
     $counts = ['total' => 0, 'confirmed' => 0, 'pending' => 0, 'done' => 0, 'cancelled' => 0];
     $revenue = 0; $guests = 0;
@@ -133,7 +141,8 @@ if ($action === 'month_report') {
             ])),
         ];
     }
-    lumina_json(['ok' => true, 'ym' => $ym, 'counts' => $counts, 'revenue' => $revenue, 'bookingsServed' => $guests,
+    lumina_json(['ok' => true, 'ym' => $rangeMode ? ($from . '_to_' . $to) : $ym, 'from' => $rangeMode ? $from : null, 'to' => $rangeMode ? $to : null,
+                 'counts' => $counts, 'revenue' => $revenue, 'bookingsServed' => $guests,
                  'perTreatment' => $perTreatment, 'perTech' => array_values($perTech), 'rows' => $out]);
 }
 

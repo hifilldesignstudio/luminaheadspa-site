@@ -141,12 +141,10 @@
         <div class="cal" id="calGrid"></div>
         <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Numbers show bookings that day · <span style="color:var(--red);font-weight:700">red</span> = waiting for confirmation. Tap a day to see its bookings.</p>
       </div>
-      <h3 class="sec">Monthly report</h3>
+      <h3 class="sec">Booking records</h3>
       <div class="card">
-        <div class="row" style="margin-bottom:12px"><button class="act" id="repPrev">‹ Prev</button><b id="repTitle" style="text-align:center"></b><button class="act" id="repNext">Next ›</button></div>
-        <div id="repBody"><p style="color:var(--muted)">Loading…</p></div>
-        <button class="btn dark" id="repCsv" style="margin-top:12px">Download CSV</button>
-        <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Booking records are kept permanently — pick any month to see its totals, or download the month's bookings as a spreadsheet file. Revenue excludes cancelled bookings.</p>
+        <button class="btn dark" id="repOpen">Booking records &amp; report</button>
+        <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Booking records are kept permanently. Open the report to pick any date range — bookings and cancellations are listed separately — then print it or download a spreadsheet. Revenue excludes cancelled bookings.</p>
       </div>
     </section>
 
@@ -336,7 +334,6 @@ function loadBookings(){
     $('dayList').innerHTML = list.length? list.map(cardHTML).join('') : '<p style="color:var(--muted)">No bookings found.</p>';
   });
   loadCal();
-  loadReport();
 }
 document.body.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('button.assignBtn') : null;
@@ -375,17 +372,42 @@ function loadCal(){
 $('calPrev').addEventListener('click', function(){ calM--; if(calM<0){calM=11;calY--;} loadCal(); });
 $('calNext').addEventListener('click', function(){ calM++; if(calM>11){calM=0;calY++;} loadCal(); });
 
-/* ---------- monthly report (permanent booking records) ---------- */
-var repY, repM, repData = null;
-(function(){ var d = new Date(); repY = d.getFullYear(); repM = d.getMonth(); })();
-function loadReport(){
-  var ym = repY+'-'+String(repM+1).padStart(2,'0');
-  $('repTitle').textContent = new Date(repY, repM, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
-  api('month_report', {qs:'&ym='+ym}).then(function(j){
-    if(!j.ok){ $('repBody').innerHTML = '<p class="err">'+esc(j.error||'Could not load the report.')+'</p>'; repData = null; return; }
-    if(ym !== repY+'-'+String(repM+1).padStart(2,'0')) return; /* month moved on while loading */
+/* ---------- booking records report (permanent records, any date range) ---------- */
+var repData = null;
+function repRowHtml(r){
+  return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;font-size:14px;padding:6px 0;border-bottom:1px dashed #e5dcc8">'
+    + '<div style="flex:0 0 96px">'+esc(r.date)+'</div><div style="flex:0 0 72px">'+esc(r.time)+'</div>'
+    + '<div style="flex:1;min-width:160px"><b>'+esc(r.name)+'</b> — '+esc(r.treatments)+(r.therapist? ' · '+esc(r.therapist) : '')+'</div>'
+    + '<div style="flex:0">$'+r.total+'</div><div style="flex:0"><span class="badge '+esc(r.status)+'">'+esc(r.status)+'</span></div></div>';
+}
+function openReport(){
+  var now = new Date();
+  var first = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
+  var ld = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  var last = ld.getFullYear()+'-'+String(ld.getMonth()+1).padStart(2,'0')+'-'+String(ld.getDate()).padStart(2,'0');
+  $('tmBody').innerHTML = '<div class="row" style="align-items:flex-end">'
+    + '<div><label>From</label><input type="date" id="repFrom" value="'+first+'"></div>'
+    + '<div><label>To</label><input type="date" id="repTo" value="'+last+'"></div>'
+    + '<div style="flex:0"><button class="act" id="repPrint">Print</button></div>'
+    + '<div style="flex:0"><button class="act" id="repCsv2">Download CSV</button></div></div>'
+    + '<div id="repBody2" style="margin-top:12px">Loading…</div>';
+  openTechModal('Booking records & report');
+  $('repFrom').addEventListener('change', loadRangeReport);
+  $('repTo').addEventListener('change', loadRangeReport);
+  $('repPrint').addEventListener('click', printReport);
+  $('repCsv2').addEventListener('click', downloadReportCsv);
+  loadRangeReport();
+}
+function loadRangeReport(){
+  var f = $('repFrom').value, t = $('repTo').value;
+  if(!f || !t) return;
+  api('month_report', {qs:'&from='+f+'&to='+t}).then(function(j){
+    var box = $('repBody2'); if(!box) return;
+    if(!j || !j.ok){ box.innerHTML = '<p class="err">'+esc((j && j.error) || 'Could not load the report.')+'</p>'; repData = null; return; }
     repData = j;
     var c = j.counts||{};
+    var act = (j.rows||[]).filter(function(r){ return r.status!=='cancelled'; });
+    var can = (j.rows||[]).filter(function(r){ return r.status==='cancelled'; });
     var h = '<div style="display:flex;gap:22px;flex-wrap:wrap;font-size:15px">'
       + '<div>Bookings<br><b style="font-size:20px">'+(c.total||0)+'</b></div>'
       + '<div>Served (not cancelled)<br><b style="font-size:20px">'+(j.bookingsServed||0)+'</b></div>'
@@ -393,20 +415,40 @@ function loadReport(){
       + '<div>Revenue<br><b style="font-size:20px">$'+(j.revenue||0)+'</b></div></div>';
     if((j.perTreatment||[]).length){
       h += '<h4 style="margin:16px 0 6px;font-size:13px;letter-spacing:.08em;color:var(--muted)">TREATMENTS BOOKED</h4>'
-        + j.perTreatment.map(function(t){ return '<div style="font-size:14.5px">'+esc(t.name)+' · '+t.count+'</div>'; }).join('');
+        + j.perTreatment.map(function(x){ return '<div style="font-size:14.5px">'+esc(x.name)+' · '+x.count+'</div>'; }).join('');
     }
     if((j.perTech||[]).length){
       h += '<h4 style="margin:16px 0 6px;font-size:13px;letter-spacing:.08em;color:var(--muted)">BY THERAPIST</h4>'
-        + j.perTech.map(function(t){ return '<div style="font-size:14.5px">'+esc(t.name)+' · '+t.bookings+' bookings · '+t.minutes+' min</div>'; }).join('');
+        + j.perTech.map(function(x){ return '<div style="font-size:14.5px">'+esc(x.name)+' · '+x.bookings+' bookings · '+x.minutes+' min</div>'; }).join('');
     }
-    if(!c.total) h += '<p style="color:var(--muted);margin-top:10px">No bookings recorded this month yet.</p>';
-    $('repBody').innerHTML = h;
+    h += '<h4 style="margin:18px 0 4px;font-size:13px;letter-spacing:.08em;color:var(--muted)">BOOKINGS — NOT CANCELLED ('+act.length+')</h4><div id="repSecA">'
+      + (act.length? act.map(repRowHtml).join('') : '<p style="color:var(--muted)">None in this range.</p>') + '</div>';
+    h += '<h4 style="margin:18px 0 4px;font-size:13px;letter-spacing:.08em;color:var(--muted)">CANCELLED ('+can.length+')</h4><div id="repSecC">'
+      + (can.length? can.map(repRowHtml).join('') : '<p style="color:var(--muted)">None in this range.</p>') + '</div>';
+    box.innerHTML = h;
   });
 }
-$('repPrev').addEventListener('click', function(){ repM--; if(repM<0){repM=11;repY--;} loadReport(); });
-$('repNext').addEventListener('click', function(){ repM++; if(repM>11){repM=0;repY++;} loadReport(); });
-$('repCsv').addEventListener('click', function(){
-  if(!repData || !(repData.rows||[]).length){ alert('No bookings to download for this month.'); return; }
+function printReport(){
+  if(!repData){ alert('Load a report first.'); return; }
+  var j = repData, c = j.counts||{};
+  function tbl(rows){
+    if(!rows.length) return '<p>None.</p>';
+    return '<table style="border-collapse:collapse;width:100%" border="1" cellpadding="6">' + rows.map(function(r){
+      return '<tr><td style="white-space:nowrap">'+esc(r.date)+' '+esc(r.time)+'</td><td>'+esc(r.name)+'<br>'+esc(r.phone)+'</td><td>'+esc(r.treatments)+(r.therapist? '<br>'+esc(r.therapist) : '')+'</td><td>$'+r.total+'</td><td>'+esc(r.status)+'</td></tr>';
+    }).join('') + '</table>';
+  }
+  var act = (j.rows||[]).filter(function(r){ return r.status!=='cancelled'; });
+  var can = (j.rows||[]).filter(function(r){ return r.status==='cancelled'; });
+  $('printSheet').innerHTML = '<h1 style="font-size:20px;margin:0 0 2px">Lumina Head Spa &amp; Beauty</h1>'
+    + '<div style="font-size:15px;margin-bottom:4px">Booking records — '+esc(j.from||'')+' to '+esc(j.to||'')+'</div>'
+    + '<div style="color:#555;margin-bottom:12px">Bookings: '+(c.total||0)+' · Served (not cancelled): '+(j.bookingsServed||0)+' · Cancelled: '+(c.cancelled||0)+' · Revenue: $'+(j.revenue||0)+'</div>'
+    + '<h3 style="margin:14px 0 6px">Bookings — not cancelled ('+act.length+')</h3>' + tbl(act)
+    + '<h3 style="margin:18px 0 6px">Cancelled ('+can.length+')</h3>' + tbl(can)
+    + '<p style="color:#555;margin-top:12px">Lumina Head Spa &amp; Beauty · 9505 Keele Street, Unit 1A, Maple · 647-368-8148</p>';
+  window.print();
+}
+function downloadReportCsv(){
+  if(!repData || !(repData.rows||[]).length){ alert('No bookings to download for this range.'); return; }
   var q = function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
   var lines = [['Date','Time','Reference','Guest','Phone','Email','Treatments','Total ($)','Status','Source','Therapist'].join(',')];
   repData.rows.forEach(function(r){ lines.push([r.date, r.time, r.ref, r.name, r.phone, r.email, r.treatments, r.total, r.status, r.source, r.therapist].map(q).join(',')); });
@@ -416,7 +458,8 @@ $('repCsv').addEventListener('click', function(){
   a.download = 'lumina-bookings-'+repData.ym+'.csv';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
-});
+}
+$('repOpen').addEventListener('click', openReport);
 
 /* ---------- phone booking ---------- */
 var STAFFMODE = false, TECHLIST = [];
