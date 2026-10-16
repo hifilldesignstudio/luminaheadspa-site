@@ -48,6 +48,16 @@
   .cal .day.sel{border-color:var(--brass-d);background:#fdf6ea}
   .cal .day.off{opacity:.35;cursor:default}
   .cal .day .pend{color:var(--red);font-weight:700}
+  #pCalGrid .day{cursor:default}
+  #pCalGrid .day.bookable{cursor:pointer}
+  #pCalGrid .day.p-many{background:#e2f2e6;border-color:#b7dfc4}
+  #pCalGrid .day.p-some{background:#f3f7ea;border-color:#dde5c8}
+  #pCalGrid .day.p-few{background:#fdf0d5;border-color:#ecd3a0}
+  #pCalGrid .day.p-full{background:#f6e3e0;border-color:#eec6bf}
+  #pCalGrid .day.p-grey{background:#efedea;color:var(--muted)}
+  #pCalGrid .day.sel{border-color:var(--brass-d);box-shadow:inset 0 0 0 2px var(--brass-d)}
+  .pcal-key{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px}
+  .pcal-key.p-many{background:#e2f2e6}.pcal-key.p-some{background:#f3f7ea}.pcal-key.p-few{background:#fdf0d5}.pcal-key.p-full{background:#f6e3e0}.pcal-key.p-grey{background:#efedea}
   .msg{min-height:20px;color:var(--green);font-size:14px;margin-top:10px}
   .err{color:var(--red)}
   #login{max-width:380px;margin:70px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px}
@@ -106,6 +116,9 @@
 
     <section id="tab-phone" class="hidden">
       <div class="card">
+        <div class="row" style="margin-bottom:10px"><button class="act" id="pCalPrev">‹ Prev</button><b id="pCalTitle" style="text-align:center"></b><button class="act" id="pCalNext">Next ›</button></div>
+        <div class="cal" id="pCalGrid"></div>
+        <p style="color:var(--muted);font-size:12.5px;margin:10px 0 14px">Free start times for the treatment(s) picked below: <span class="pcal-key p-many"></span> 6 or more · <span class="pcal-key p-some"></span> 3–5 · <span class="pcal-key p-few"></span> 1–2 · <span class="pcal-key p-full"></span> Full · <span class="pcal-key p-grey"></span> Closed, past or too far ahead. Tap a day with times free to pick it.</p>
         <div class="grid">
           <div><label>Guest name</label><input id="mName"></div>
           <div><label>Phone</label><input id="mPhone"></div>
@@ -293,25 +306,96 @@ function fillTreatSelects(){
   $('mT1').innerHTML = opts;
   $('mT2').innerHTML = '<option value="">— none —</option>' + opts;
 }
-function fillTimes(){
+function phoneChain(){
   var ids = [$('mT1').value, $('mT2').value].filter(Boolean).map(Number);
   var mins = ids.reduce(function(a,id){ var t=TREATS.find(function(x){return x.id===id}); return a+(t? t.minutes:0); }, 0) || 60;
   var units = ids.reduce(function(a,id){ var t=TREATS.find(function(x){return x.id===id}); return Math.max(a, t? t.units:1); }, 1);
+  return {mins: mins, units: units};
+}
+function fillTimes(){
+  var ch = phoneChain();
   var date = $('mDate').value || todayStr();
-  fetch(PUB+'?action=availability&date='+date+'&minutes='+mins+'&units='+units+(STAFFMODE? '&techId='+(($('mTech')||{}).value||0) : '')).then(function(r){return r.json()}).then(function(j){
+  fetch(PUB+'?action=availability&date='+date+'&minutes='+ch.mins+'&units='+ch.units+(STAFFMODE? '&techId='+(($('mTech')||{}).value||0) : '')).then(function(r){return r.json()}).then(function(j){
     var starts = (j.starts||[]);
     $('mTime').innerHTML = starts.length? starts.map(function(s){ var h=Math.floor(s/60), m=s%60, ap=h>=12?'PM':'AM', h12=h%12||12; return '<option value="'+s+'">'+h12+':'+String(m).padStart(2,'0')+' '+ap+'</option>'; }).join('') : '<option value="">No times available</option>';
   });
 }
+/* Phone Booking availability calendar — a month-at-a-glance guide to how
+   many start times are still free for the chain picked in the form below.
+   Purely visual: the date input still works as before, and submitting a
+   phone booking still revalidates (with the overbook confirm). */
+var pCalY, pCalM, pCalCache = {}, pCalReq = 0;
+(function(){ var d=new Date(); pCalY=d.getFullYear(); pCalM=d.getMonth(); })();
+function pcalCell(entry){
+  if(!entry) return {cls:'p-grey', label:'—', bookable:false};
+  if(entry.state==='many' || entry.state==='some' || entry.state==='few'){
+    return {cls:'p-'+entry.state, label: entry.starts+(entry.starts===1?' time':' times'), bookable:true};
+  }
+  if(entry.state==='full') return {cls:'p-full', label:'Full', bookable:false};
+  if(entry.state==='blocked') return {cls:'p-grey', label:'Closed', bookable:false};
+  return {cls:'p-grey', label:'—', bookable:false};
+}
+function renderPhoneCal(days){
+  var ym = pCalY+'-'+String(pCalM+1).padStart(2,'0');
+  $('pCalTitle').textContent = new Date(pCalY, pCalM, 1).toLocaleDateString('en-CA',{month:'long', year:'numeric'});
+  var first = new Date(pCalY, pCalM, 1), lead = (first.getDay()+6)%7, dim = new Date(pCalY, pCalM+1, 0).getDate();
+  var sel = $('mDate').value;
+  var h = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(d){ return '<div class="dow">'+d+'</div>'; }).join('');
+  for(var i=0;i<lead;i++) h += '<div></div>';
+  for(var dnum=1; dnum<=dim; dnum++){
+    var ds = ym+'-'+String(dnum).padStart(2,'0');
+    var cell = pcalCell(days? days[ds] : null);
+    h += '<div class="day '+cell.cls+(cell.bookable?' bookable':'')+(ds===sel?' sel':'')+'"'+(cell.bookable?' data-pday="'+ds+'"':'')+'>'+dnum+'<small>'+cell.label+'</small></div>';
+  }
+  $('pCalGrid').innerHTML = h;
+  $('pCalGrid').querySelectorAll('.day[data-pday]').forEach(function(el){
+    el.addEventListener('click', function(){
+      $('mDate').value = el.dataset.pday;
+      fillTimes();
+      renderPhoneCal(pCalCache[pcalKey()] || null);
+    });
+  });
+}
+function pcalKey(){
+  var ch = phoneChain();
+  var techId = STAFFMODE? (parseInt(($('mTech')||{}).value||'0',10)||0) : 0;
+  return (pCalY+'-'+String(pCalM+1).padStart(2,'0'))+'|'+ch.mins+'|'+ch.units+'|'+techId;
+}
+function loadPhoneCal(){
+  var key = pcalKey();
+  if(pCalCache[key]){ renderPhoneCal(pCalCache[key]); return; }
+  var ch = phoneChain();
+  var techId = STAFFMODE? (parseInt(($('mTech')||{}).value||'0',10)||0) : 0;
+  var ym = pCalY+'-'+String(pCalM+1).padStart(2,'0');
+  var req = ++pCalReq;
+  renderPhoneCal(null);
+  api('phone_availability', {qs: '&ym='+ym+'&minutes='+ch.mins+'&units='+ch.units+(STAFFMODE? '&techId='+techId : '')}).then(function(j){
+    if(req!==pCalReq) return;
+    if(j.ok){ pCalCache[key] = j.days||{}; renderPhoneCal(pCalCache[key]); }
+  });
+}
+$('pCalPrev').addEventListener('click', function(){ pCalM--; if(pCalM<0){ pCalM=11; pCalY--; } loadPhoneCal(); });
+$('pCalNext').addEventListener('click', function(){ pCalM++; if(pCalM>11){ pCalM=0; pCalY++; } loadPhoneCal(); });
+document.querySelector('.tab[data-tab="phone"]').addEventListener('click', function(){ loadPhoneCal(); });
 ['mT1','mT2','mDate','mTech'].forEach(function(id){ document.addEventListener('change', function(e){ if(e.target.id===id) fillTimes(); }); });
+['mT1','mT2','mTech'].forEach(function(id){ document.addEventListener('change', function(e){ if(e.target.id===id) loadPhoneCal(); }); });
+document.addEventListener('change', function(e){
+  if(e.target.id!=='mDate') return;
+  var parts = $('mDate').value? $('mDate').value.split('-') : [];
+  if(parts.length===3){
+    var y = parseInt(parts[0],10), m = parseInt(parts[1],10)-1;
+    if(y!==pCalY || m!==pCalM){ pCalY = y; pCalM = m; loadPhoneCal(); return; }
+  }
+  var cur = pCalCache[pcalKey()]; if(cur) renderPhoneCal(cur);
+});
 $('mAdd').addEventListener('click', function(){
   var items = [$('mT1').value, $('mT2').value].filter(Boolean).map(Number);
   var body = {name: $('mName').value, phone: $('mPhone').value, email: $('mEmail').value, note: $('mNote').value,
               date: $('mDate').value, start: parseInt($('mTime').value,10), items: items, techId: parseInt(($('mTech')||{}).value||'0',10)||0};
   $('mErr').textContent = '';
   api('phone_booking', {method:'POST', body: body}).then(function(j){
-    if(j.ok){ $('mMsg').textContent = '✓ Added — reference '+j.ref; loadBookings(); }
-    else if(j.full){ if(confirm(j.error)){ body.force = true; api('phone_booking', {method:'POST', body: body}).then(function(j2){ if(j2.ok){ $('mMsg').textContent='✓ Added (overbooked) — reference '+j2.ref; loadBookings(); } }); } }
+    if(j.ok){ $('mMsg').textContent = '✓ Added — reference '+j.ref; pCalCache = {}; loadPhoneCal(); loadBookings(); }
+    else if(j.full){ if(confirm(j.error)){ body.force = true; api('phone_booking', {method:'POST', body: body}).then(function(j2){ if(j2.ok){ $('mMsg').textContent='✓ Added (overbooked) — reference '+j2.ref; pCalCache = {}; loadPhoneCal(); loadBookings(); } }); } }
     else $('mErr').textContent = j.error || 'Could not add the booking.';
   });
 });

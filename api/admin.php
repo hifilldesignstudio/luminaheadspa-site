@@ -96,6 +96,41 @@ if ($action === 'booking_status') {
     lumina_json(['ok' => true]);
 }
 
+if ($action === 'phone_availability') {
+    /* Month grid for the Phone Booking tab: how many feasible start times
+       each day still has for a chain of $minutes needing $units (and, in
+       staff mode, for one named technician when techId > 0). Read-only —
+       the phone_booking submit still revalidates. State precedence follows
+       the order below: past, then blocked, then outside the booking
+       window, then the computed counts. Uses the same engines as booking:
+       lumina_available_starts (pool) / lumina_available_starts_staff. */
+    $ym = (string)($_GET['ym'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}$/', $ym)) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
+    $first = DateTime::createFromFormat('Y-m-d', $ym . '-01', lumina_tz());
+    if (!$first || $first->format('Y-m') !== $ym) lumina_json(['ok' => false, 'error' => 'Bad month'], 400);
+    $minutes = max(1, (int)($_GET['minutes'] ?? 60));
+    $units = max(1, (int)($_GET['units'] ?? 1));
+    $staffMode = lumina_mode($pdo) === 'staff';
+    $techId = $staffMode ? (int)($_GET['techId'] ?? 0) : 0;
+    if ($staffMode) lumina_ensure_modelb($pdo);
+    $set = lumina_settings($pdo);
+    $today = lumina_now()->format('Y-m-d');
+    $last = lumina_now()->modify('+' . (int)$set['window_days'] . ' days')->format('Y-m-d');
+    $days = [];
+    $dim = (int)$first->format('t');
+    for ($d = 1; $d <= $dim; $d++) {
+        $ds = $ym . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT);
+        if ($ds < $today) { $days[$ds] = ['starts' => 0, 'state' => 'past']; continue; }
+        if (lumina_blocked($pdo, $ds)) { $days[$ds] = ['starts' => 0, 'state' => 'blocked']; continue; }
+        if ($ds > $last) { $days[$ds] = ['starts' => 0, 'state' => 'outside']; continue; }
+        $n = $staffMode
+            ? count(lumina_available_starts_staff($pdo, $ds, $minutes, $units, $techId)['starts'])
+            : count(lumina_available_starts($pdo, $ds, $minutes, $units));
+        $days[$ds] = ['starts' => $n, 'state' => $n >= 6 ? 'many' : ($n >= 3 ? 'some' : ($n >= 1 ? 'few' : 'full'))];
+    }
+    lumina_json(['ok' => true, 'days' => $days]);
+}
+
 if ($action === 'phone_booking') {
     $in = body_json();
     $name = trim((string)($in['name'] ?? '')); $phone = trim((string)($in['phone'] ?? ''));
