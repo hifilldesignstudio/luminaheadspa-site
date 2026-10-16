@@ -275,7 +275,7 @@ function cardHTML(b){
   if(b.status==='pending') h += '<div><button class="act confirm" data-id="'+b.id+'" data-tech="'+(b.tech_id||0)+'" data-st="confirmed">Confirm</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='confirmed') h += '<div><button class="act" data-id="'+b.id+'" data-st="done">Done</button><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
   else if(b.status==='done') h += '<div><button class="act cancel" data-id="'+b.id+'" data-st="cancelled">Cancel</button></div>';
-  if(STAFFMODE && (b.status==='pending' || b.status==='confirmed')){
+  if(STAFFMODE && (b.status==='pending' || b.status==='confirmed' || b.status==='done')){
     var aopts = '<option value="0">Auto-assign</option>' + TECHLIST.filter(function(t){ return t.active==1; }).map(function(t){ return '<option value="'+t.id+'"'+((String(b.tech_id)===String(t.id) || (!b.tech_id && b.suggest && String(b.suggest)===String(t.id)))?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('');
     h += '<div style="margin-top:8px"><label style="display:inline">Therapist</label> <select class="asgSel">'+aopts+'</select> <button class="act assignBtn" data-id="'+b.id+'">Assign</button></div>';
   }
