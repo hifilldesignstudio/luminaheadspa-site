@@ -235,7 +235,7 @@ function loadBookings(){
   $('dayTitle').textContent = title;
   api('bookings', {qs: qs}).then(function(j){
     var list = (j.bookings||[]);
-    if(listMode==='upcoming' && !q) list = list.filter(function(b){ return b.status!=='cancelled'; });
+    if(listMode==='upcoming' && !q) list = list.filter(function(b){ return b.status!=='cancelled' && b.status!=='pending'; });
     $('dayList').innerHTML = list.length? list.map(cardHTML).join('') : '<p style="color:var(--muted)">No bookings found.</p>';
   });
   loadCal();

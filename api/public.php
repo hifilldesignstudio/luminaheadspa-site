@@ -52,8 +52,8 @@ if ($action === 'book') {
     if ($name === '' || $phone === '' || !$ids || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         lumina_json(['ok' => false, 'error' => 'Please complete your name, phone, treatment, date and time.'], 422);
     }
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        lumina_json(['ok' => false, 'error' => 'That email looks incomplete — please check it, or leave it blank.'], 422);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        lumina_json(['ok' => false, 'error' => 'Please add your email — your confirmation and booking link are sent there.'], 422);
     }
     $ph = $pdo->prepare("SELECT * FROM treatments WHERE id = ? AND active = 1");
     $items = [];
