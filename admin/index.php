@@ -206,12 +206,11 @@
         <div class="grid">
           <div><label>Opens</label><select id="sOpen"></select></div>
           <div><label>Closes</label><select id="sClose"></select></div>
-          <div id="sCapRow"><label>Simultaneous guests (capacity)</label><input id="sCap" type="number" min="1" max="10"></div>
-          <div id="sCapNote" class="hidden"><label>Simultaneous guests</label><p style="color:var(--muted);font-size:13px;margin-top:2px">Automatic in Per-technician mode — availability follows the technicians' schedules, so there is no separate number to set. The system counts the day's guests for you (see the Calendar on the Bookings tab).</p></div>
+          <div><label>Simultaneous guests</label><p style="color:var(--muted);font-size:13px;margin-top:2px">Automatic — the system counts your <b>active technicians</b> on the Technicians tab: one guest at a time per technician. To serve more guests at once, add a technician or set one active again.</p></div>
           <div><label>Book ahead (days)</label><input id="sWin" type="number" min="1" max="90"></div>
           <div><label>Online cancel cutoff (hours before)</label><input id="sCut" type="number" min="0" max="48"></div>
           <div><label>Booking mode</label><select id="sMode"><option value="pool">Shared pool</option><option value="staff">Per-technician</option></select>
-          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Shared pool: guests book against one shared capacity. Per-technician: every booking is assigned to a specific therapist using the schedules on the Technicians tab; guests may pick a therapist or choose "No preference".</p></div>
+          <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Shared pool: guests book into one shared pool — how many at once follows your active technicians. Per-technician: every booking is assigned to a specific therapist using the schedules on the Technicians tab; guests may pick a therapist or choose "No preference".</p></div>
           <div style="grid-column:1/-1"><label>Notification emails</label><input id="sNotify" type="text" placeholder="info@luminaheadspa.ca">
           <p style="color:var(--muted);font-size:13px;margin:6px 0 0">New-booking, cancellation, reschedule and website-message notifications are sent to these addresses. Separate several with commas — for example the owner and a staff member. Leave blank to use info@luminaheadspa.ca only.</p></div>
         </div>
@@ -546,8 +545,6 @@ function fillTechSelects(){
 }
 function syncStaffUI(){
   var w = $('mTechWrap'); if(w) w.classList.toggle('hidden', !STAFFMODE);
-  var cr = $('sCapRow'); if(cr) cr.classList.toggle('hidden', STAFFMODE);
-  var cn = $('sCapNote'); if(cn) cn.classList.toggle('hidden', !STAFFMODE);
   fillTechSelects();
 }
 function loadTechs(){
@@ -904,7 +901,7 @@ function loadSettings(){
   return api('settings').then(function(j){
     var s = j.settings||{};
     timeOptions($('sOpen'), parseInt(s.open_min||600,10)); timeOptions($('sClose'), parseInt(s.close_min||1260,10));
-    $('sCap').value = s.capacity||2; $('sWin').value = s.window_days||30; $('sCut').value = s.cancel_cutoff_hours||3;
+    $('sWin').value = s.window_days||30; $('sCut').value = s.cancel_cutoff_hours||3;
     $('sNotify').value = s.notify_emails||'';
     $('sMode').value = s.booking_mode||'pool';
     STAFFMODE = (s.booking_mode||'pool')==='staff';
@@ -914,7 +911,7 @@ function loadSettings(){
 }
 $('sMode').addEventListener('change', function(){ STAFFMODE = $('sMode').value==='staff'; syncStaffUI(); });
 $('saveSettings').addEventListener('click', function(){
-  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, capacity: $('sCap').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value, booking_mode: $('sMode').value}})
+  api('settings_save', {method:'POST', body:{open_min: $('sOpen').value, close_min: $('sClose').value, window_days: $('sWin').value, cancel_cutoff_hours: $('sCut').value, notify_emails: $('sNotify').value, booking_mode: $('sMode').value}})
     .then(function(j){ $('setMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); if(j.ok){ loadSettings(); loadBookings(); } });
 });
 $('bAdd').addEventListener('click', function(){

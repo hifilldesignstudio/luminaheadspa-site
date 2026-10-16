@@ -83,12 +83,23 @@ function lumina_overlap_units($pdo, $dateStr, $start, $end, $excludeId = 0) {
     return (int)$st->fetch()['u'];
 }
 
+/* Simultaneous guests is no longer a hand-set number: it follows the team.
+   One guest at a time per ACTIVE technician; if nobody is on the team list
+   yet, fall back to the stored setting so the shop never drops to zero. */
+function lumina_capacity($pdo, $set) {
+    try {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM technicians WHERE active=1")->fetchColumn();
+    } catch (Throwable $e) { $n = 0; }
+    if ($n > 0) return $n;
+    return max(1, (int)($set['capacity'] ?? 2));
+}
+
 /* Bookable start times (minutes from midnight) for a chain of $totalMin needing $units.
    Returns [] when the date is out of window or blocked. */
 function lumina_available_starts($pdo, $dateStr, $totalMin, $units, $excludeId = 0) {
     $set = lumina_settings($pdo);
     $open = (int)$set['open_min']; $close = (int)$set['close_min'];
-    $step = (int)$set['slot_step']; $cap = (int)$set['capacity'];
+    $step = (int)$set['slot_step']; $cap = lumina_capacity($pdo, $set);
     $today = lumina_now()->format('Y-m-d');
     $last = lumina_now()->modify('+' . (int)$set['window_days'] . ' days')->format('Y-m-d');
     if ($dateStr < $today || $dateStr > $last) return [];
