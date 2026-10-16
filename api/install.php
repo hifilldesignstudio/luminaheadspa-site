@@ -34,8 +34,13 @@ $pdo->exec("CREATE TABLE technicians (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL DEFAULT '',
+  sched TEXT NULL,
   active TINYINT NOT NULL DEFAULT 1,
   sort INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TABLE tech_days_off (
+  tech_id INT NOT NULL, d DATE NOT NULL, PRIMARY KEY (tech_id, d)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
 $pdo->exec("CREATE TABLE blocked_dates (
@@ -55,6 +60,9 @@ $pdo->exec("CREATE TABLE bookings (
   total_min INT NOT NULL,
   total_price INT NOT NULL,
   units INT NOT NULL DEFAULT 1,
+  tech_id INT NULL,
+  tech2_id INT NULL,
+  tech_pref TINYINT NOT NULL DEFAULT 0,
   status ENUM('pending','confirmed','cancelled','done') NOT NULL DEFAULT 'pending',
   source ENUM('online','phone') NOT NULL DEFAULT 'online',
   token VARCHAR(64) NOT NULL UNIQUE,
@@ -87,6 +95,7 @@ $set = $pdo->prepare("INSERT INTO settings (k, v) VALUES (?, ?)");
 foreach ([
     'open_min' => '600', 'close_min' => '1260', 'slot_step' => '30',
     'window_days' => '30', 'capacity' => '2', 'cancel_cutoff_hours' => '3',
+    'booking_mode' => 'pool',
 ] as $k => $v) $set->execute([$k, $v]);
 
 /* Treatments — exactly as on the website (order = price low to high within each group). */
