@@ -177,9 +177,8 @@
     <section id="tab-treatments" class="hidden">
       <div class="card" style="overflow-x:auto">
         <table><thead><tr><th>Name</th><th>Group</th><th>Min</th><th>Price $</th><th>Spots</th><th>On</th><th></th></tr></thead><tbody id="treatBody"></tbody></table>
-        <button class="btn" id="addTreat" style="margin-top:14px">+ Add treatment</button>
         <p class="msg" id="treatMsg"></p>
-        <p style="color:var(--muted);font-size:13px;margin-top:6px">Changes here update the booking system right away. "Spots" = how many technicians the treatment needs at once (2 for a couples treatment). Turning a treatment Off hides it from online booking.</p>
+        <p style="color:var(--muted);font-size:13px;margin-top:6px">Prices changed here update the booking system right away. To add or remove a treatment, or change its name, group or time, please contact Hifill Design Studio - a treatment on the website also needs its photo and description there.</p>
       </div>
     </section>
 
@@ -583,19 +582,16 @@ $('mAdd').addEventListener('click', function(){
 });
 
 /* ---------- treatments + groups ---------- */
-var GROUPS = [], TREATROWS = [];
-function groupOptions(cur){
-  var names = GROUPS.map(function(g){ return g.name; });
-  if(cur && names.indexOf(cur) < 0) names.unshift(cur);
-  return names.map(function(n){ return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+'</option>'; }).join('');
-}
+var TREATROWS = [];
 function renderTreatRows(){
+  /* Price-only editing (owner decision, 2026-10-16): everything else in the
+     row is shown as text; only the price is an input. */
   $('treatBody').innerHTML = TREATROWS.map(function(t){
-    return '<tr data-id="'+t.id+'"><td><input value="'+esc(t.name)+'"></td><td><select class="mini">'+groupOptions(t.cat)+'</select></td>'
-      + '<td><input class="mini" type="number" value="'+t.minutes+'"></td><td><input class="mini" type="number" value="'+t.price+'"></td>'
-      + '<td><input class="mini" type="number" value="'+t.units+'" min="1" max="4"></td>'
-      + '<td><input type="checkbox" '+(t.active==1?'checked':'')+'></td>'
-      + '<td style="white-space:nowrap"><button class="act saveTreat">Save</button> <button class="act cancel delTreat">Delete</button></td></tr>';
+    return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'</td><td>'+esc(t.cat)+'</td>'
+      + '<td>'+t.minutes+'</td><td><input class="mini" type="number" value="'+t.price+'"></td>'
+      + '<td>'+t.units+'</td>'
+      + '<td>'+(t.active==1?'On':'Off')+'</td>'
+      + '<td style="white-space:nowrap"><button class="act saveTreat">Save</button></td></tr>';
   }).join('');
 }
 function loadTreatments(){
@@ -603,34 +599,16 @@ function loadTreatments(){
     TREATROWS = (j.treatments||[]);
     TREATS = TREATROWS.filter(function(t){ return t.active==1; });
     fillTreatSelects(); if($('mDate').value) fillTimes();
-    api('groups').then(function(g){
-      GROUPS = (g.groups||[]);
-      renderTreatRows();
-    });
+    renderTreatRows();
   });
 }
 $('treatBody').addEventListener('click', function(e){
   var tr = e.target.closest('tr'); if(!tr) return;
-  var id = parseInt(tr.dataset.id,10);
-  if(e.target.classList.contains('delTreat')){
-    var row = TREATROWS.find(function(t){ return t.id===id; });
-    if(!confirm('Delete "' + (row? row.name : 'this treatment') + '"? If it appears in past bookings it will be hidden instead, so the records stay correct.')) return;
-    api('treatment_delete', {method:'POST', body:{id: id}}).then(function(j){
-      if(j && j.ok){
-        if(j.mode==='hidden') alert('That treatment appears in past bookings, so it was hidden (turned Off) instead of deleted — it no longer shows for booking, and its records stay intact.');
-        $('treatMsg').textContent = '✓ Done'; loadTreatments();
-      } else $('treatMsg').textContent = (j && j.error) || 'Error';
-    });
-    return;
-  }
   if(!e.target.classList.contains('saveTreat')) return;
-  var inp = tr.querySelectorAll('input');
-  var prev = TREATROWS.find(function(t){ return t.id===id; });
-  api('treatment_save', {method:'POST', body:{id: id, name: inp[0].value, cat: tr.querySelector('select').value, minutes: inp[1].value, price: inp[2].value, units: inp[3].value, active: inp[4].checked, sort: prev? prev.sort : 0}})
-    .then(function(j){ $('treatMsg').textContent = j.ok? '✓ Saved' : (j.error||'Error'); loadTreatments(); });
-});
-$('addTreat').addEventListener('click', function(){
-  api('treatment_save', {method:'POST', body:{id:0, name:'New Treatment', cat: GROUPS.length? GROUPS[0].name : 'Signature', minutes:60, price:68, units:1, active:true, sort:99}}).then(loadTreatments);
+  var id = parseInt(tr.dataset.id,10);
+  var inp = tr.querySelector('input');
+  api('treatment_save', {method:'POST', body:{id: id, price: inp.value}})
+    .then(function(j){ $('treatMsg').textContent = j.ok? '\u2713 Saved' : (j.error||'Error'); loadTreatments(); });
 });
 
 

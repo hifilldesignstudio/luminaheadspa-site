@@ -339,12 +339,17 @@ if ($action === 'treatments') {
     lumina_json(['ok' => true, 'treatments' => $rows]);
 }
 if ($action === 'treatment_save') {
+    /* Per-client restriction (owner decision, 2026-10-16): this shop's admin
+       may change PRICES ONLY. Adding a treatment, or changing its name,
+       group, minutes, spots or on/off state, is done by the website provider,
+       because a public treatment also needs a photo and a description on the
+       website pages. */
     $in = body_json();
     $id = (int)($in['id'] ?? 0);
-    $vals = [trim((string)$in['name']), trim((string)$in['cat']), (int)$in['minutes'], (int)$in['price'], (int)($in['units'] ?? 1), !empty($in['active']) ? 1 : 0, (int)($in['sort'] ?? 0)];
-    if ($vals[0] === '' || $vals[2] <= 0) lumina_json(['ok' => false, 'error' => 'Name and minutes are required.'], 422);
-    if ($id) { $vals[] = $id; $pdo->prepare("UPDATE treatments SET name=?, cat=?, minutes=?, price=?, units=?, active=?, sort=? WHERE id=?")->execute($vals); }
-    else $pdo->prepare("INSERT INTO treatments (name, cat, minutes, price, units, active, sort) VALUES (?, ?, ?, ?, ?, ?, ?)")->execute($vals);
+    if (!$id) lumina_json(['ok' => false, 'error' => 'New treatments are added by your website provider. Only prices can be changed here.'], 403);
+    $price = (int)($in['price'] ?? -1);
+    if ($price < 0) lumina_json(['ok' => false, 'error' => 'A valid price is required.'], 422);
+    $pdo->prepare("UPDATE treatments SET price=? WHERE id=?")->execute([$price, $id]);
     lumina_json(['ok' => true]);
 }
 
@@ -357,19 +362,10 @@ if ($action === 'groups') {
 }
 
 if ($action === 'treatment_delete') {
-    /* Same protection as technicians: a treatment that appears in past
-       bookings is hidden (deactivated) instead of deleted, so booking
-       records and reports stay correct. */
-    $in = body_json();
-    $id = (int)($in['id'] ?? 0);
-    $q = $pdo->prepare("SELECT COUNT(*) FROM booking_items WHERE treatment_id = ?");
-    $q->execute([$id]);
-    if ((int)$q->fetchColumn() > 0) {
-        $pdo->prepare("UPDATE treatments SET active = 0 WHERE id = ?")->execute([$id]);
-        lumina_json(['ok' => true, 'mode' => 'hidden']);
-    }
-    $pdo->prepare("DELETE FROM treatments WHERE id = ?")->execute([$id]);
-    lumina_json(['ok' => true, 'mode' => 'deleted']);
+    /* Disabled for this client (owner decision, 2026-10-16): treatments are
+       never removed from this panel - see the note on treatment_save above.
+       The previous delete-with-protection logic remains in git history. */
+    lumina_json(['ok' => false, 'error' => 'Treatments cannot be removed here. Please contact your website provider.'], 403);
 }
 
 if ($action === 'technicians') {
