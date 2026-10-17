@@ -60,7 +60,8 @@
   footer .logo img{height:44px}
   .btn.ghost:hover{border-color:var(--brass);color:var(--brass-d)}
   nav.main .btn{padding:9px 20px}
-  @media(max-width:860px){nav.main a:not(.btn){display:none}}
+  .nav-toggle{display:none;background:none;border:0;color:var(--gold);font-size:26px;line-height:1;padding:8px 6px;cursor:pointer}
+  @media(max-width:860px){nav.main a:not(.btn){display:none}.nav-toggle{display:block}nav.main.open{position:absolute;top:100%;left:0;right:0;flex-direction:column;align-items:stretch;gap:2px;background:rgba(20,17,13,.98);padding:8px 5vw 16px;border-bottom:1px solid #3a332a;box-shadow:0 18px 30px rgba(0,0,0,.35)}nav.main.open a:not(.btn){display:block;padding:11px 0;font-size:16.5px;border-bottom:1px solid rgba(233,226,212,.08)}nav.main.open .btn{margin-top:10px;text-align:center}}
 
   /* hero */
   .hero{padding:0;position:relative;overflow:hidden;background:#14110d;display:flex;align-items:center;min-height:660px}
@@ -303,7 +304,9 @@
     <a href="contact.html">Contact</a>
     <a class="btn" href="index.html#book">Book Now</a>
   </nav>
+  <button class="nav-toggle" id="navToggle" type="button" aria-label="Menu" aria-expanded="false">&#9776;</button>
 </div></header>
+<script>(function(){var b=document.getElementById('navToggle'),n=document.querySelector('nav.main');if(!b||!n)return;b.addEventListener('click',function(){var o=n.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');b.innerHTML=o?'&#10005;':'&#9776;';});n.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('a')){n.classList.remove('open');b.setAttribute('aria-expanded','false');b.innerHTML='&#9776;';}});})();</script>
 <section id="story"><div class="wrap"><div class="story">
   <div>
     <div class="kicker">Our Story</div>
