@@ -46,7 +46,20 @@
   td input{padding:7px 9px;font-size:14px}
   td input.mini{width:74px}
   .tmeta{display:none}
-  .ttable .tgroup-row td{background:#f7f0de;color:var(--brass-d);font-weight:700;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;padding-top:12px}
+  .ttable .tgroup-row td{background:#efe9db;color:var(--brass-d);font-weight:700;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;padding:9px 12px;border-radius:10px;border-bottom:none}
+  /* Per-category colours: band heading + a matching pill on every row, so the
+     group is obvious even mid-scroll (owner feedback, 2026-10-20). */
+  .ttable .tgroup-row.gc-signature td{background:#e9d9ae;color:#7a5c14}
+  .ttable .tgroup-row.gc-headspa td{background:#dce8d2;color:#44603a}
+  .ttable .tgroup-row.gc-facial td{background:#f3dde0;color:#8a4a56}
+  .ttable .tgroup-row.gc-massage td{background:#dfe7ee;color:#3d5a73}
+  .ttable .tgroup-row.gc-combos td{background:#e6def0;color:#5d4a7a}
+  .tcat{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;font-weight:700;letter-spacing:.03em;background:#efe9db;color:var(--brass-d)}
+  .tcat.gc-signature{background:#e9d9ae;color:#7a5c14}
+  .tcat.gc-headspa{background:#dce8d2;color:#44603a}
+  .tcat.gc-facial{background:#f3dde0;color:#8a4a56}
+  .tcat.gc-massage{background:#dfe7ee;color:#3d5a73}
+  .tcat.gc-combos{background:#e6def0;color:#5d4a7a}
   /* Treatments table on phones: stack each row (name + meta line, then price
      + Save on one line) so nothing needs sideways scrolling to reach Save. */
   @media(max-width:700px){
@@ -60,8 +73,8 @@
     .ttable td:nth-child(4)::before{content:"Price $";color:var(--muted);font-size:12.5px;margin-right:6px}
     .ttable td:nth-child(7){margin-left:auto}
     .ttable td input.mini{width:84px}
-    .ttable tr.tgroup-row{display:block;padding:14px 0 0;border-bottom:none}
-    .ttable .tgroup-row td{display:block;background:none;padding:0;font-size:12.5px;font-weight:700}
+    .ttable tr.tgroup-row{display:block;padding:16px 0 2px;border-bottom:none}
+    .ttable .tgroup-row td{display:block;padding:9px 12px;font-size:12.5px;font-weight:700}
   }
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
   .cal .dow{font-size:11px;color:var(--muted);text-align:center;letter-spacing:.08em}
@@ -615,10 +628,12 @@ function renderTreatRows(){
     var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
     return (ia<0?99:ia) - (ib<0?99:ib);
   });
+  var SLUGS = {'Signature':'signature','Head Spa':'headspa','Facial':'facial','Massage':'massage','Combos':'combos'};
   $('treatBody').innerHTML = order.map(function(cat){
-    var head = '<tr class="tgroup-row"><td colspan="7">'+esc(cat)+'</td></tr>';
+    var slug = SLUGS[cat] || 'other';
+    var head = '<tr class="tgroup-row gc-'+slug+'"><td colspan="7">'+esc(cat)+'</td></tr>';
     return head + groups[cat].map(function(t){
-      return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'<span class="tmeta">'+esc(t.cat)+' &middot; '+t.minutes+' min &middot; '+t.units+(t.units>1?' spots':' spot')+' &middot; '+(t.active==1?'On':'Off')+'</span></td><td>'+esc(t.cat)+'</td>'
+      return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'<span class="tmeta"><span class="tcat gc-'+slug+'">'+esc(t.cat)+'</span> &middot; '+t.minutes+' min &middot; '+t.units+(t.units>1?' spots':' spot')+' &middot; '+(t.active==1?'On':'Off')+'</span></td><td><span class="tcat gc-'+slug+'">'+esc(t.cat)+'</span></td>'
         + '<td>'+t.minutes+'</td><td><input class="mini" type="number" value="'+t.price+'"></td>'
         + '<td>'+t.units+'</td>'
         + '<td>'+(t.active==1?'On':'Off')+'</td>'
