@@ -45,6 +45,21 @@
   th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
   td input{padding:7px 9px;font-size:14px}
   td input.mini{width:74px}
+  .tmeta{display:none}
+  /* Treatments table on phones: stack each row (name + meta line, then price
+     + Save on one line) so nothing needs sideways scrolling to reach Save. */
+  @media(max-width:700px){
+    .ttable,.ttable tbody{display:block;width:100%}
+    .ttable thead{display:none}
+    .ttable tr{display:flex;flex-wrap:wrap;align-items:center;column-gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+    .ttable td{border-bottom:none;padding:1px 0}
+    .ttable td:nth-child(1){flex:1 1 100%;font-weight:600;font-size:15px}
+    .ttable .tmeta{display:block;font-weight:400;font-size:12.5px;color:var(--muted);margin-top:2px}
+    .ttable td:nth-child(2),.ttable td:nth-child(3),.ttable td:nth-child(5),.ttable td:nth-child(6){display:none}
+    .ttable td:nth-child(4)::before{content:"Price $";color:var(--muted);font-size:12.5px;margin-right:6px}
+    .ttable td:nth-child(7){margin-left:auto}
+    .ttable td input.mini{width:84px}
+  }
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
   .cal .dow{font-size:11px;color:var(--muted);text-align:center;letter-spacing:.08em}
   .cal .day{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 4px;text-align:center;cursor:pointer;font-size:13.5px}
@@ -176,7 +191,7 @@
 
     <section id="tab-treatments" class="hidden">
       <div class="card" style="overflow-x:auto">
-        <table><thead><tr><th>Name</th><th>Group</th><th>Min</th><th>Price $</th><th>Spots</th><th>On</th><th></th></tr></thead><tbody id="treatBody"></tbody></table>
+        <table class="ttable"><thead><tr><th>Name</th><th>Group</th><th>Min</th><th>Price $</th><th>Spots</th><th>On</th><th></th></tr></thead><tbody id="treatBody"></tbody></table>
         <p class="msg" id="treatMsg"></p>
         <p style="color:var(--muted);font-size:13px;margin-top:6px">Prices changed here update the booking system right away. To add or remove a treatment, or change its name, group or time, please contact Hifill Design Studio - a treatment on the website also needs its photo and description there.</p>
       </div>
@@ -587,7 +602,7 @@ function renderTreatRows(){
   /* Price-only editing (owner decision, 2026-10-16): everything else in the
      row is shown as text; only the price is an input. */
   $('treatBody').innerHTML = TREATROWS.map(function(t){
-    return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'</td><td>'+esc(t.cat)+'</td>'
+    return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'<span class="tmeta">'+esc(t.cat)+' &middot; '+t.minutes+' min &middot; '+t.units+(t.units>1?' spots':' spot')+' &middot; '+(t.active==1?'On':'Off')+'</span></td><td>'+esc(t.cat)+'</td>'
       + '<td>'+t.minutes+'</td><td><input class="mini" type="number" value="'+t.price+'"></td>'
       + '<td>'+t.units+'</td>'
       + '<td>'+(t.active==1?'On':'Off')+'</td>'
