@@ -46,6 +46,7 @@
   td input{padding:7px 9px;font-size:14px}
   td input.mini{width:74px}
   .tmeta{display:none}
+  .ttable .tgroup-row td{background:#f7f0de;color:var(--brass-d);font-weight:700;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;padding-top:12px}
   /* Treatments table on phones: stack each row (name + meta line, then price
      + Save on one line) so nothing needs sideways scrolling to reach Save. */
   @media(max-width:700px){
@@ -59,6 +60,8 @@
     .ttable td:nth-child(4)::before{content:"Price $";color:var(--muted);font-size:12.5px;margin-right:6px}
     .ttable td:nth-child(7){margin-left:auto}
     .ttable td input.mini{width:84px}
+    .ttable tr.tgroup-row{display:block;padding:14px 0 0;border-bottom:none}
+    .ttable .tgroup-row td{display:block;background:none;padding:0;font-size:12.5px;font-weight:700}
   }
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
   .cal .dow{font-size:11px;color:var(--muted);text-align:center;letter-spacing:.08em}
@@ -600,13 +603,27 @@ $('mAdd').addEventListener('click', function(){
 var TREATROWS = [];
 function renderTreatRows(){
   /* Price-only editing (owner decision, 2026-10-16): everything else in the
-     row is shown as text; only the price is an input. */
-  $('treatBody').innerHTML = TREATROWS.map(function(t){
-    return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'<span class="tmeta">'+esc(t.cat)+' &middot; '+t.minutes+' min &middot; '+t.units+(t.units>1?' spots':' spot')+' &middot; '+(t.active==1?'On':'Off')+'</span></td><td>'+esc(t.cat)+'</td>'
-      + '<td>'+t.minutes+'</td><td><input class="mini" type="number" value="'+t.price+'"></td>'
-      + '<td>'+t.units+'</td>'
-      + '<td>'+(t.active==1?'On':'Off')+'</td>'
-      + '<td style="white-space:nowrap"><button class="act saveTreat">Save</button></td></tr>';
+     row is shown as text; only the price is an input. Rows are grouped by
+     category (owner request, 2026-10-20), like the booking widget. */
+  var ORDER = ['Signature','Head Spa','Facial','Massage','Combos'];
+  var groups = {}, order = [];
+  TREATROWS.forEach(function(t){
+    if(!groups[t.cat]){ groups[t.cat] = []; order.push(t.cat); }
+    groups[t.cat].push(t);
+  });
+  order.sort(function(a,b){
+    var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+  $('treatBody').innerHTML = order.map(function(cat){
+    var head = '<tr class="tgroup-row"><td colspan="7">'+esc(cat)+'</td></tr>';
+    return head + groups[cat].map(function(t){
+      return '<tr data-id="'+t.id+'"><td>'+esc(t.name)+'<span class="tmeta">'+esc(t.cat)+' &middot; '+t.minutes+' min &middot; '+t.units+(t.units>1?' spots':' spot')+' &middot; '+(t.active==1?'On':'Off')+'</span></td><td>'+esc(t.cat)+'</td>'
+        + '<td>'+t.minutes+'</td><td><input class="mini" type="number" value="'+t.price+'"></td>'
+        + '<td>'+t.units+'</td>'
+        + '<td>'+(t.active==1?'On':'Off')+'</td>'
+        + '<td style="white-space:nowrap"><button class="act saveTreat">Save</button></td></tr>';
+    }).join('');
   }).join('');
 }
 function loadTreatments(){
