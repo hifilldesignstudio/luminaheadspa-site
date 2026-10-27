@@ -265,6 +265,11 @@
   .hero-slides{position:absolute;inset:0;z-index:0}
   .hslide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.1s ease}
   .hslide.on{opacity:1}
+  .hslide.gift{background-color:#f6eeda;background-size:contain;background-repeat:no-repeat}
+  .hero::before{transition:opacity .8s ease}
+  .hero.gift-on::before{opacity:0}
+  .hero .hero-text,.hero .promo-badge{transition:opacity .5s ease}
+  .hero.gift-on .hero-text,.hero.gift-on .promo-badge{opacity:0;pointer-events:none}
   .hero::before{z-index:1;background:linear-gradient(90deg, rgba(15,12,8,.86) 0%, rgba(15,12,8,.62) 44%, rgba(15,12,8,.18) 78%, rgba(15,12,8,.30) 100%)}
   .hero-dots{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;display:flex;gap:8px;z-index:3}
   .hero-dots button{width:9px;height:9px;border-radius:50%;border:none;background:rgba(253,246,227,.45);cursor:pointer;padding:0}
@@ -399,7 +404,7 @@
 </div></header>
 <script>(function(){var b=document.getElementById('navToggle'),n=document.querySelector('nav.main');if(!b||!n)return;b.addEventListener('click',function(){var o=n.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');b.innerHTML=o?'&#10005;':'&#9776;';});n.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('a')){n.classList.remove('open');b.setAttribute('aria-expanded','false');b.innerHTML='&#9776;';}});})();</script>
 
-<section class="hero" id="top"><div class="hero-slides" aria-hidden="true"><div class="hslide on" style="background-image:url('hero-1.jpg')"></div><div class="hslide" style="background-image:url('hero-2.jpg')"></div><div class="hslide" style="background-image:url('hero-3.jpg')"></div><div class="hslide" style="background-image:url('hero-4.jpg')"></div></div><button type="button" class="hero-arrow prev" id="heroPrev" aria-label="Previous photo">&#8249;</button><button type="button" class="hero-arrow next" id="heroNext" aria-label="Next photo">&#8250;</button><div class="hero-dots" id="heroDots"></div><div class="promo-badge" role="note" aria-label="Soft opening: 10 percent off, first month only"><div class="pb-top">SOFT OPENING</div><div class="pb-big">10% OFF</div><div class="pb-bot">FIRST MONTH ONLY</div></div><div class="wrap"><div class="hero-text">
+<section class="hero" id="top"><div class="hero-slides" aria-hidden="true"><div class="hslide on" style="background-image:url('hero-1.jpg')"></div><div class="hslide" style="background-image:url('hero-2.jpg')"></div><div class="hslide" style="background-image:url('hero-3.jpg')"></div><div class="hslide" style="background-image:url('hero-4.jpg')"></div><a class="hslide gift" href="contact.html" style="background-image:url('hero-gift.jpg')" aria-label="Gift cards now available, starting at $100 — contact us to buy one"></a></div><button type="button" class="hero-arrow prev" id="heroPrev" aria-label="Previous photo">&#8249;</button><button type="button" class="hero-arrow next" id="heroNext" aria-label="Next photo">&#8250;</button><div class="hero-dots" id="heroDots"></div><div class="promo-badge" role="note" aria-label="Soft opening: 10 percent off, first month only"><div class="pb-top">SOFT OPENING</div><div class="pb-big">10% OFF</div><div class="pb-bot">FIRST MONTH ONLY</div></div><div class="wrap"><div class="hero-text">
     <div class="kicker">Head Spa &amp; Beauty · Maple, Vaughan</div>
     <h1>Your beauty,<br><em>our care</em>.</h1>
     <p class="lede">Warm water, slow hands and a calm room. Lumina is a head spa in Maple where every visit is a small reset — for your hair, your head and your day.</p>
@@ -1020,7 +1025,7 @@
     var dotsBox=document.getElementById('heroDots'), idx=0, timer=null;
     slides.forEach(function(_,i){ var b=document.createElement('button'); b.type='button'; b.setAttribute('aria-label','Slide '+(i+1)); if(i===0)b.className='on'; b.addEventListener('click',function(){go(i);restart();}); dotsBox.appendChild(b); });
     var dots=[].slice.call(dotsBox.children);
-    function go(i){ slides[idx].classList.remove('on'); dots[idx].classList.remove('on'); idx=(i+slides.length)%slides.length; slides[idx].classList.add('on'); dots[idx].classList.add('on'); }
+    function go(i){ slides[idx].classList.remove('on'); dots[idx].classList.remove('on'); idx=(i+slides.length)%slides.length; slides[idx].classList.add('on'); dots[idx].classList.add('on'); var h=document.querySelector('.hero'); if(h) h.classList.toggle('gift-on', slides[idx].classList.contains('gift')); }
     function restart(){ if(timer)clearInterval(timer); if(!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){ timer=setInterval(function(){go(idx+1);},5500); } }
     var pv=document.getElementById('heroPrev'), nx=document.getElementById('heroNext');
     if(pv)pv.addEventListener('click',function(){go(idx-1);restart();});
