@@ -265,7 +265,8 @@
   .hero-slides{position:absolute;inset:0;z-index:0}
   .hslide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.1s ease}
   .hslide.on{opacity:1}
-  .hslide.gift{background-color:#f6eeda;background-size:contain;background-repeat:no-repeat}
+  .hslide.gift{background-color:#f6eeda;background-size:cover}
+  @media(max-width:700px){.hslide.gift{background-image:url('hero-gift-wide.jpg') !important;background-size:contain;background-repeat:no-repeat}}
   .hero::before{transition:opacity .8s ease}
   .hero.gift-on::before{opacity:0}
   .hero .hero-text,.hero .promo-badge{transition:opacity .5s ease}
@@ -404,7 +405,7 @@
 </div></header>
 <script>(function(){var b=document.getElementById('navToggle'),n=document.querySelector('nav.main');if(!b||!n)return;b.addEventListener('click',function(){var o=n.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');b.innerHTML=o?'&#10005;':'&#9776;';});n.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('a')){n.classList.remove('open');b.setAttribute('aria-expanded','false');b.innerHTML='&#9776;';}});})();</script>
 
-<section class="hero" id="top"><div class="hero-slides" aria-hidden="true"><div class="hslide on" style="background-image:url('hero-1.jpg')"></div><div class="hslide" style="background-image:url('hero-2.jpg')"></div><div class="hslide" style="background-image:url('hero-3.jpg')"></div><div class="hslide" style="background-image:url('hero-4.jpg')"></div><a class="hslide gift" href="contact.html" style="background-image:url('hero-gift.jpg')" aria-label="Gift cards now available, starting at $100 — contact us to buy one"></a></div><button type="button" class="hero-arrow prev" id="heroPrev" aria-label="Previous photo">&#8249;</button><button type="button" class="hero-arrow next" id="heroNext" aria-label="Next photo">&#8250;</button><div class="hero-dots" id="heroDots"></div><div class="promo-badge" role="note" aria-label="Soft opening: 10 percent off, first month only"><div class="pb-top">SOFT OPENING</div><div class="pb-big">10% OFF</div><div class="pb-bot">FIRST MONTH ONLY</div></div><div class="wrap"><div class="hero-text">
+<section class="hero gift-on" id="top"><div class="hero-slides" aria-hidden="true"><a class="hslide gift on" href="contact.html" style="background-image:url('hero-gift.jpg')" aria-label="Gift cards now available, starting at $100 — contact us to buy one"></a><div class="hslide" style="background-image:url('hero-1.jpg')"></div><div class="hslide" style="background-image:url('hero-2.jpg')"></div><div class="hslide" style="background-image:url('hero-3.jpg')"></div><div class="hslide" style="background-image:url('hero-4.jpg')"></div></div><button type="button" class="hero-arrow prev" id="heroPrev" aria-label="Previous photo">&#8249;</button><button type="button" class="hero-arrow next" id="heroNext" aria-label="Next photo">&#8250;</button><div class="hero-dots" id="heroDots"></div><div class="promo-badge" role="note" aria-label="Soft opening: 10 percent off, first month only"><div class="pb-top">SOFT OPENING</div><div class="pb-big">10% OFF</div><div class="pb-bot">FIRST MONTH ONLY</div></div><div class="wrap"><div class="hero-text">
     <div class="kicker">Head Spa &amp; Beauty · Maple, Vaughan</div>
     <h1>Your beauty,<br><em>our care</em>.</h1>
     <p class="lede">Warm water, slow hands and a calm room. Lumina is a head spa in Maple where every visit is a small reset — for your hair, your head and your day.</p>
