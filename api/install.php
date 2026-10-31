@@ -104,29 +104,31 @@ foreach ([
     'booking_mode' => 'staff',
 ] as $k => $v) $set->execute([$k, $v]);
 
-/* Treatments — exactly as on the website (order = price low to high within each group). */
+/* Treatments — Mei's menu (2026-10-30 redesign), poster order within each series. */
 $treatments = [
   // name, cat, minutes, price, units
-  ['Aromatherapy Head Spa for Relaxation', 'Signature', 75, 99, 1],
-  ['New Chinese-Style Wellness Head Therapy', 'Signature', 75, 129, 1],
-  ['Floral Head Spa', 'Signature', 75, 129, 1],
-  ['Herbal Hot Compress Head Treatment', 'Signature', 90, 149, 1],
-  ['Holographic Head Spa', 'Head Spa', 60, 68, 1],
-  ['Nourishing Scalp Cleansing Treatment', 'Head Spa', 60, 88, 1],
-  ['Deep Cleansing & Firming Facial', 'Facial', 60, 68, 1],
-  ['Probiotic Skincare Treatment', 'Facial', 60, 108, 1],
-  ['HydroGlow Facial', 'Facial', 90, 168, 1],
-  ['Swedish Massage', 'Massage', 60, 78, 1],
-  ['Foot Reflexology', 'Massage', 60, 78, 1],
-  ['Hot Stone Massage', 'Massage', 60, 88, 1],
-  ['Himalayan Salt Stone Therapy', 'Massage', 60, 98, 1],
-  ['Swedish Massage for Two', 'Massage', 60, 130, 2],
-  ['Japanese Head Spa & Facial — 60-Minute Combo', 'Combos', 60, 79, 1],
-  ['Japanese Head Spa & Hot Stone Massage — 60-Minute Combo', 'Combos', 60, 79, 1],
-  ['Japanese Head Spa & Foot Massage — 60-Minute Combo', 'Combos', 60, 79, 1],
-  ['Japanese Head Spa & Facial — 90-Minute Combo', 'Combos', 90, 99, 1],
-  ['Japanese Head Spa & Hot Stone Massage — 90-Minute Combo', 'Combos', 90, 99, 1],
-  ['Japanese Head Spa & Foot Massage — 90-Minute Combo', 'Combos', 90, 99, 1],
+  ['Scalp Relaxation SPA', 'Signature Head Spa', 45, 68, 1],
+  ['Stress Relief SPA', 'Signature Head Spa', 60, 68, 1],
+  ['Herbal Scalp SPA', 'Signature Head Spa', 75, 108, 1],
+  ['Floral Head SPA', 'Signature Head Spa', 75, 108, 1],
+  ['Aromatherapy Head SPA', 'Signature Head Spa', 75, 108, 1],
+  ['Herbal Hot Compress SPA', 'Signature Head Spa', 90, 128, 1],
+  ['Hydrating Soothing Facial SPA', 'Facial Care', 60, 68, 1],
+  ['Eye Muscle Relief SPA', 'Facial Care', 30, 35, 1],
+  ['Japanese Prebiotic Facial SPA', 'Facial Care', 75, 108, 1],
+  ['Deep Cleansing & Hydrating SPA', 'Facial Care', 90, 168, 1],
+  ['Essential Oil Massage SPA', 'Body Essential Oil SPA', 45, 55, 1],
+  ['Lymphatic Detox SPA', 'Body Essential Oil SPA', 30, 40, 1],
+  ['Abdominal Warmth Care SPA', 'Body Essential Oil SPA', 30, 40, 1],
+  ['Traditional Chinese Muscle Relief SPA', 'Body Essential Oil SPA', 60, 68, 1],
+  ['Himalayan Salt Stone SPA', 'Body Essential Oil SPA', 60, 88, 1],
+  ['Hot Stone Massage SPA', 'Body Essential Oil SPA', 60, 78, 1],
+  ['Swedish Massage SPA', 'Body Essential Oil SPA', 60, 68, 1],
+  ['Foot Massage SPA', 'Body Essential Oil SPA', 60, 68, 1],
+  ['Premium 3-Step SPA', 'Packages', 150, 158, 1],
+  ['Floral Head Spa + Chinese Muscle Relief Spa', 'Packages', 105, 128, 1],
+  ['Stress Relief SPA + Facial Relaxation SPA', 'Packages', 120, 130, 1],
+  ['Herbal Scalp SPA + Hot Stone Massage SPA', 'Packages', 105, 128, 1],
 ];
 $ins = $pdo->prepare("INSERT INTO treatments (name, cat, minutes, price, units, sort) VALUES (?, ?, ?, ?, ?, ?)");
 foreach ($treatments as $i => $t) $ins->execute([$t[0], $t[1], $t[2], $t[3], $t[4], $i + 1]);

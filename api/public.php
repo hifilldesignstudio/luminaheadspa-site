@@ -26,6 +26,7 @@ if ($action === 'health') {
     lumina_json($resp);
 }
 if (!$pdo) lumina_json(['ok' => false, 'error' => 'Booking is not available right now. Please call us at 647-368-8148.'], 503);
+lumina_ensure_menu_v2($pdo);
 
 function body_json() {
     $raw = file_get_contents('php://input');

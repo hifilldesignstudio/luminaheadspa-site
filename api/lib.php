@@ -254,6 +254,93 @@ function lumina_ensure_groups($pdo) {
     } catch (Exception $e) { /* table may not exist yet */ }
 }
 
+/* Menu v2 (2026-10-30): Mei's redesigned price list — 22 items in four
+   series. One-time, name-matched migration: continuing treatments are
+   renamed/repriced in place (ids stay stable), retired ones are
+   deactivated (never deleted, so booking history stays intact), new
+   ones are inserted. Runs once, gated by the menu_version setting. */
+function lumina_ensure_menu_v2($pdo) {
+    static $done = false;
+    if ($done || !$pdo) return;
+    $done = true;
+    try {
+        $ver = (int)$pdo->query("SELECT v FROM settings WHERE k = 'menu_version'")->fetchColumn();
+        if ($ver >= 2) return;
+        lumina_ensure_groups($pdo);
+        // [name, cat, minutes, price, sort] — poster order within each series
+        $menu = [
+            ['Scalp Relaxation SPA', 'Signature Head Spa', 45, 68, 1],
+            ['Stress Relief SPA', 'Signature Head Spa', 60, 68, 2],
+            ['Herbal Scalp SPA', 'Signature Head Spa', 75, 108, 3],
+            ['Floral Head SPA', 'Signature Head Spa', 75, 108, 4],
+            ['Aromatherapy Head SPA', 'Signature Head Spa', 75, 108, 5],
+            ['Herbal Hot Compress SPA', 'Signature Head Spa', 90, 128, 6],
+            ['Hydrating Soothing Facial SPA', 'Facial Care', 60, 68, 7],
+            ['Eye Muscle Relief SPA', 'Facial Care', 30, 35, 8],
+            ['Japanese Prebiotic Facial SPA', 'Facial Care', 75, 108, 9],
+            ['Deep Cleansing & Hydrating SPA', 'Facial Care', 90, 168, 10],
+            ['Essential Oil Massage SPA', 'Body Essential Oil SPA', 45, 55, 11],
+            ['Lymphatic Detox SPA', 'Body Essential Oil SPA', 30, 40, 12],
+            ['Abdominal Warmth Care SPA', 'Body Essential Oil SPA', 30, 40, 13],
+            ['Traditional Chinese Muscle Relief SPA', 'Body Essential Oil SPA', 60, 68, 14],
+            ['Himalayan Salt Stone SPA', 'Body Essential Oil SPA', 60, 88, 15],
+            ['Hot Stone Massage SPA', 'Body Essential Oil SPA', 60, 78, 16],
+            ['Swedish Massage SPA', 'Body Essential Oil SPA', 60, 68, 17],
+            ['Foot Massage SPA', 'Body Essential Oil SPA', 60, 68, 18],
+            ['Premium 3-Step SPA', 'Packages', 150, 158, 19],
+            ['Floral Head Spa + Chinese Muscle Relief Spa', 'Packages', 105, 128, 20],
+            ['Stress Relief SPA + Facial Relaxation SPA', 'Packages', 120, 130, 21],
+            ['Herbal Scalp SPA + Hot Stone Massage SPA', 'Packages', 105, 128, 22],
+        ];
+        $renames = [
+            'Aromatherapy Head Spa for Relaxation' => 'Aromatherapy Head SPA',
+            'Floral Head Spa' => 'Floral Head SPA',
+            'Herbal Hot Compress Head Treatment' => 'Herbal Hot Compress SPA',
+            'Probiotic Skincare Treatment' => 'Japanese Prebiotic Facial SPA',
+            'Swedish Massage' => 'Swedish Massage SPA',
+            'Foot Reflexology' => 'Foot Massage SPA',
+            'Hot Stone Massage' => 'Hot Stone Massage SPA',
+            'Himalayan Salt Stone Therapy' => 'Himalayan Salt Stone SPA',
+        ];
+        $retired = [
+            'New Chinese-Style Wellness Head Therapy', 'Holographic Head Spa',
+            'Nourishing Scalp Cleansing Treatment', 'Deep Cleansing & Firming Facial',
+            'HydroGlow Facial', 'Swedish Massage for Two',
+            'Japanese Head Spa & Facial — 60-Minute Combo',
+            'Japanese Head Spa & Hot Stone Massage — 60-Minute Combo',
+            'Japanese Head Spa & Foot Massage — 60-Minute Combo',
+            'Japanese Head Spa & Facial — 90-Minute Combo',
+            'Japanese Head Spa & Hot Stone Massage — 90-Minute Combo',
+            'Japanese Head Spa & Foot Massage — 90-Minute Combo',
+        ];
+        $pdo->beginTransaction();
+        $byName = [];
+        foreach ($pdo->query("SELECT id, name FROM treatments")->fetchAll() as $r) $byName[$r['name']] = (int)$r['id'];
+        $upd = $pdo->prepare("UPDATE treatments SET name = ?, cat = ?, minutes = ?, price = ?, units = 1, active = 1, sort = ? WHERE id = ?");
+        $ins = $pdo->prepare("INSERT INTO treatments (name, cat, minutes, price, units, active, sort) VALUES (?, ?, ?, ?, 1, 1, ?)");
+        foreach ($menu as $m) {
+            $id = $byName[$m[0]] ?? null;
+            if ($id === null) {
+                foreach ($renames as $old => $new) {
+                    if ($new === $m[0] && isset($byName[$old])) { $id = $byName[$old]; break; }
+                }
+            }
+            if ($id !== null) $upd->execute([$m[0], $m[1], $m[2], $m[3], $m[4], $id]);
+            else $ins->execute([$m[0], $m[1], $m[2], $m[3], $m[4]]);
+        }
+        $off = $pdo->prepare("UPDATE treatments SET active = 0 WHERE name = ?");
+        foreach ($retired as $old) $off->execute([$old]);
+        $g = $pdo->prepare("INSERT INTO treatment_groups (name, sort) VALUES (?, ?) ON DUPLICATE KEY UPDATE sort = VALUES(sort)");
+        foreach ([['Signature Head Spa', 10], ['Facial Care', 20], ['Body Essential Oil SPA', 30], ['Packages', 40]] as $gr) $g->execute($gr);
+        $pdo->exec("DELETE FROM treatment_groups WHERE name IN ('Signature','Head Spa','Facial','Massage','Combos')");
+        $pdo->prepare("INSERT INTO settings (k, v) VALUES ('menu_version', '2') ON DUPLICATE KEY UPDATE v = '2'")->execute();
+        $pdo->commit();
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        /* menu stays as-is; a later request retries */
+    }
+}
+
 function lumina_mode($pdo) {
     /* Single-model system (2026-10-16, per Illo): there is no shared-pool
        mode anymore — every booking belongs to the technician team. The

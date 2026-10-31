@@ -10,6 +10,7 @@ $action = $_GET['action'] ?? '';
 $cfg = lumina_config();
 $pdo = lumina_db();
 if (!$pdo) lumina_json(['ok' => false, 'error' => 'Backend not installed yet.'], 503);
+lumina_ensure_menu_v2($pdo);
 
 function body_json() { $d = json_decode(file_get_contents('php://input'), true); return is_array($d) ? $d : []; }
 function need_login() { if (empty($_SESSION['lumina_admin'])) lumina_json(['ok' => false, 'error' => 'Not logged in'], 401); }
