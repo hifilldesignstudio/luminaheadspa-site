@@ -51,6 +51,12 @@ if ($action === 'availability') {
 }
 
 if ($action === 'book') {
+    /* Website booking CLOSED 2026-11-09 (owner's instruction): bookings now run
+       through Fresha, so this endpoint no longer accepts new bookings. Closed
+       server-side because the confirmation email it sends to any submitted
+       address could be abused for spam. Existing bookings and the admin are
+       unaffected; manage links below still work. */
+    lumina_json(['ok' => false, 'error' => 'Online booking has moved to Fresha — please book at https://www.fresha.com/a/lumina-head-spa-beauty-vaughan-9505-keele-street-aemjfw7w or call us at 647-368-8148.'], 410);
     $in = body_json();
     $name = trim((string)($in['name'] ?? ''));
     $phone = trim((string)($in['phone'] ?? ''));
