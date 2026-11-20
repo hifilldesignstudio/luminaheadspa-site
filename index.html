@@ -111,6 +111,10 @@
   .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
   @media(max-width:860px){.cards{grid-template-columns:1fr}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 26px;display:flex;flex-direction:column;gap:10px}
+  .card{position:relative}
+  .price-tag{position:absolute;top:40px;left:38px;background:#c1272d;color:#fff;border-radius:8px;padding:6px 11px;line-height:1.2;text-align:center;box-shadow:0 6px 16px rgba(120,20,10,.35);z-index:2}
+  .price-tag .pt-now{display:block;font-weight:800;font-size:16.5px}
+  .price-tag .pt-was{display:block;font-size:11px;opacity:.88;text-decoration:line-through}
   .card .num{font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--brass);font-size:19px}
   .card h3{font-size:25px}
   .card p{color:var(--muted);font-size:15.5px;flex:1}
@@ -434,31 +438,31 @@
   </div>
   
     <div class="cards sig">
-    <div class="card"><img class="card-photo" src="svc-headspa.jpg" alt="Scalp Relaxation SPA"><h3>Scalp Relaxation SPA</h3>
+    <div class="card"><img class="card-photo" src="svc-headspa.jpg" alt="Scalp Relaxation SPA"><span class="price-tag"><span class="pt-now">NOW $54.40</span><span class="pt-was">was $68</span></span><h3>Scalp Relaxation SPA</h3>
       <p>A gentle reset that relieves tension, calms the scalp and deeply cleanses.</p>
       <div class="meta"><span>45 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="svc-facial.jpg" alt="Eye Muscle Relief SPA"><h3>Eye Muscle Relief SPA</h3>
+    <div class="card"><img class="card-photo" src="svc-facial.jpg" alt="Eye Muscle Relief SPA"><span class="price-tag"><span class="pt-now">NOW $28.00</span><span class="pt-was">was $35</span></span><h3>Eye Muscle Relief SPA</h3>
       <p>Relieves eye fatigue and tension, and helps improve fine lines and dark circles.</p>
       <div class="meta"><span>30 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="gallery-ritual.jpg" alt="Lymphatic Detox SPA"><h3>Lymphatic Detox SPA</h3>
+    <div class="card"><img class="card-photo" src="gallery-ritual.jpg" alt="Lymphatic Detox SPA"><span class="price-tag"><span class="pt-now">NOW $32.00</span><span class="pt-was">was $40</span></span><h3>Lymphatic Detox SPA</h3>
       <p>Gentle lymphatic techniques improve circulation and reduce water retention and swelling.</p>
       <div class="meta"><span>30 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="gallery-corner.jpg" alt="Essential Oil Massage SPA"><h3>Essential Oil Massage SPA</h3>
+    <div class="card"><img class="card-photo" src="gallery-corner.jpg" alt="Essential Oil Massage SPA"><span class="price-tag"><span class="pt-now">NOW $44.00</span><span class="pt-was">was $55</span></span><h3>Essential Oil Massage SPA</h3>
       <p>Essential-oil massage relieves stiffness, promotes blood circulation and relaxes tired muscles.</p>
       <div class="meta"><span>45 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="t-swedish.jpg" alt="Swedish Massage SPA"><h3>Swedish Massage SPA</h3>
+    <div class="card"><img class="card-photo" src="t-swedish.jpg" alt="Swedish Massage SPA"><span class="price-tag"><span class="pt-now">NOW $54.40</span><span class="pt-was">was $68</span></span><h3>Swedish Massage SPA</h3>
       <p>Smooth, flowing Swedish strokes relax muscles, promote circulation and ease tension.</p>
       <div class="meta"><span>60 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="t-saltstone.jpg" alt="Himalayan Salt Stone SPA"><h3>Himalayan Salt Stone SPA</h3>
+    <div class="card"><img class="card-photo" src="t-saltstone.jpg" alt="Himalayan Salt Stone SPA"><span class="price-tag"><span class="pt-now">NOW $70.40</span><span class="pt-was">was $88</span></span><h3>Himalayan Salt Stone SPA</h3>
       <p>Warm Himalayan salt stones ease muscle tension and encourage deep relaxation.</p>
       <div class="meta"><span>60 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="treat-aroma.jpg" alt="Aromatherapy Head SPA"><h3>Aromatherapy Head SPA</h3>
+    <div class="card"><img class="card-photo" src="treat-aroma.jpg" alt="Aromatherapy Head SPA"><span class="price-tag"><span class="pt-now">NOW $86.40</span><span class="pt-was">was $108</span></span><h3>Aromatherapy Head SPA</h3>
       <p>Acupressure massage with natural essential oils releases tension and improves scalp circulation.</p>
       <div class="meta"><span>75 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="treat-floral.jpg" alt="Floral Head SPA"><h3>Floral Head SPA</h3>
+    <div class="card"><img class="card-photo" src="treat-floral.jpg" alt="Floral Head SPA"><span class="price-tag"><span class="pt-now">NOW $86.40</span><span class="pt-was">was $108</span></span><h3>Floral Head SPA</h3>
       <p>Rose petals deeply cleanse the scalp and soothe inflammation, leaving a calming floral fragrance.</p>
       <div class="meta"><span>75 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
-    <div class="card"><img class="card-photo" src="treat-herbal.jpg" alt="Herbal Hot Compress SPA"><h3>Herbal Hot Compress SPA</h3>
+    <div class="card"><img class="card-photo" src="treat-herbal.jpg" alt="Herbal Hot Compress SPA"><span class="price-tag"><span class="pt-now">NOW $102.40</span><span class="pt-was">was $128</span></span><h3>Herbal Hot Compress SPA</h3>
       <p>Warm herbal compresses relax tense scalp and neck muscles, promote circulation and relieve fatigue.</p>
       <div class="meta"><span>90 min</span></div><a href="https://l.fresha.com/30xqy4yp4" target="_blank" rel="noopener">Book this &rarr;</a></div>
   </div>
